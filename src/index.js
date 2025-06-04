@@ -49,11 +49,33 @@ program
     }
 
     if (args.length === 1) {
-      testDescription = args[0]
-      testFiles = findTestFiles()
-      if (testFiles.length === 0) {
-        logger.cli('No test files found')
-        process.exit(1)
+      // Check if the single argument is a file path
+      const possibleFile = path.resolve(args[0])
+      if (fs.existsSync(possibleFile) && fs.statSync(possibleFile).isFile()) {
+        // Check if file is in node_modules
+        if (possibleFile.includes('node_modules')) {
+          logger.cli('Cannot run tests from node_modules directory')
+          process.exit(1)
+        }
+        // Run all tests in this specific file
+        testFile = possibleFile
+        testFiles = [testFile]
+        logger.cli(`Running all tests in file: ${nicePath(testFile)}`)
+        try {
+          const testExitCode = await executeTest(testFile)
+          process.exit(testExitCode)
+        } catch (error) {
+          logger.cli('Error executing test:', error)
+          process.exit(1)
+        }
+      } else {
+        // Treat as test description
+        testDescription = args[0]
+        testFiles = findTestFiles()
+        if (testFiles.length === 0) {
+          logger.cli('No test files found')
+          process.exit(1)
+        }
       }
     } else if (args.length >= 2) {
       // If the first arg looks like a file, use it

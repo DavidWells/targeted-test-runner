@@ -82,13 +82,15 @@ tt
 tt 'test two'
 
 # Run all tests containing 'test'
-tt -a 'test'
+tt 'test' -a
+tt 'test' --all
 
 # Run tests from a specific file
 tt ./path/to/test.js 'test two'
 
 # Run all matching tests from a specific file
-tt ./path/to/test.js -a 'test'
+tt ./path/to/test.js 'test' -a 
+tt ./path/to/test.js 'test' --all
 ```
 
 ## Configuration
