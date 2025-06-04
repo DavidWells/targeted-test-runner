@@ -1,0 +1,341 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Create .http files to Interact with our API endpoints.
+
+**Your task: Is to take our API endpoints that are listed and create the API.md file for us to use in our editor to make requests via the vscode-restclient extension.**
+
+Follow this process:
+
+1.  **Identify Recent Project Developments:**
+    - Review information about recently completed tasks (e.g., from `docs/tasks/`, task management systems if accessible, or summarized in recent discussions).
+    - Examine recent commit history for significant changes to code, features, or configurations.
+    - Consider any new features added or bugs fixed that might impact documentation.
+
+2.  **Thoroughly Review Documentation:**
+    - Read all files located within the `docs/` directory and its subdirectories.
+    - Pay close attention to READMEs, guides, architectural documents, and usage instructions.
+
+3.  **Then create the API documentation following the output instructions below. Ensure the Formatting is followed**
+    - Follow `# Template` section
+    - Make sure to include a name for the request like `# @name getTodo` inside the `http` code fence
+    - Set variables like shown in the `Template`, `Request Variables` and `Responses` section where it makes sense. Use the variables you set in other requests that are setup. The `@name` is required for variables to work.
+    - Replace `{API Name}` with the services name
+
+**Output:**
+
+See below for instructions on what the `API.md` files should look like in `Template` sections.
+
+For more information on how to setup `http` code fences see the `HTTP Request File Guide` and the readme at https://raw.githubusercontent.com/Huachao/vscode-restclient/refs/heads/master/README.md
+
+---
+
+# Template
+
+This is the exact template to follow using `http` code fences. 
+
+````md
+# {API Name}
+
+Below are a list of callable endpoints for easy manual testing. You must have [REST Client](https://marketplace.visualstudio.com/items?itemName=humao.rest-client) installed in VSCode, Windsurf or Cursor.
+
+## API settings
+
+These are variables used in the requests below.
+
+```ini
+@localUrl = http://localhost:3000/dev
+@remoteUrl = https://xyz.execute-api.us-east-1.amazonaws.com/dev
+# Swap out the base URL for local/remote dev
+@baseUrl = {{remoteUrl}}
+```
+
+## API Requests
+
+Here are the callable endpoints
+
+### Create a new todo
+
+```http
+# @name createTodo
+POST {{baseUrl}}/todos
+Content-Type: application/json
+
+{
+  "title": "heyyyy title",
+  "description": "This post is awesome"
+}
+```
+
+Set `todoId` for other requests.
+
+```
+@todoId = {{createTodo.response.body.$.id}}
+```
+
+### Get all todos
+
+```http
+GET {{baseUrl}}/todos
+```
+
+### Get a specific todo
+
+```http
+GET {{baseUrl}}/todos/{{todoId}}
+```
+
+### Update a todo
+
+```http
+# @name updateTodo
+PUT {{baseUrl}}/todos/{{todoId}}
+Content-Type: application/json
+
+{
+  "title": "hey title updatedddddddd",
+  "description": "Updated description"
+}
+```
+
+### Delete a todo
+
+```http
+DELETE {{baseUrl}}/todos/{{todoId}}
+```
+````
+
+---
+
+# Responses
+
+The values returned can set variables used in other calls like in the example below where `todoId` is set and then used in the `Update the created todo` request below
+
+```
+### Create a new todo
+# @name createTodo
+
+```http
+POST {{baseUrl}}/todos
+Content-Type: application/json
+
+{
+  "title": "Learn Serverless",
+  "description": "Build a serverless API with AWS Lambda"
+}
+
+### Get the created todo using its ID
+@todoId = {{createTodo.response.body.$.id}}
+
+### Update the created todo
+
+PUT {{baseUrl}}/todos/{{todoId}}
+Content-Type: application/json
+
+```
+
+---
+
+# HTTP Request File Guide
+
+REST Client allows you to send HTTP requests and view responses in Visual Studio Code. Create files with `.http` or `.rest` extensions to get started.
+
+## Basic Request Format
+
+The simplest request is just a URL:
+
+```http
+https://example.com/comments/1
+```
+
+Or follow the standard RFC 2616 format with method, headers, and body:
+
+```http
+POST https://example.com/comments HTTP/1.1
+content-type: application/json
+
+{
+    "name": "sample",
+    "time": "Wed, 21 Oct 2015 18:27:50 GMT"
+}
+```
+
+## Request Structure
+
+### Request Line
+
+The first non-empty line defines the request:
+
+```http
+GET https://example.com/comments/1 HTTP/1.1
+GET https://example.com/comments/1
+https://example.com/comments/1
+```
+
+If no method is specified, GET is assumed.
+
+### Query Parameters
+
+Write query strings inline:
+
+```http
+GET https://example.com/comments?page=2&pageSize=10
+```
+
+Or spread across multiple lines:
+```http
+GET https://example.com/comments
+    ?page=2
+    &pageSize=10
+```
+
+### Headers
+
+Add headers after the request line, one per line:
+
+```http
+POST https://example.com/comments HTTP/1.1
+User-Agent: rest-client
+Accept-Language: en-GB,en-US;q=0.8
+Content-Type: application/json
+```
+
+### Request Body
+Add a blank line after headers, then include the body:
+
+```http
+POST https://example.com/comments HTTP/1.1
+Content-Type: application/json
+
+{
+    "name": "sample",
+    "time": "Wed, 21 Oct 2015 18:27:50 GMT"
+}
+```
+
+## Multiple Requests
+
+Separate multiple requests with `###`:
+
+```http
+GET https://example.com/comments/1 HTTP/1.1
+
+###
+
+GET https://example.com/topics/1 HTTP/1.1
+
+###
+
+POST https://example.com/comments HTTP/1.1
+content-type: application/json
+
+{
+    "name": "sample",
+    "time": "Wed, 21 Oct 2015 18:27:50 GMT"
+}
+```
+
+## Variables
+
+### File Variables
+
+Define variables at the file level:
+
+```http
+@hostname = api.example.com
+@port = 8080
+@host = {{hostname}}:{{port}}
+@contentType = application/json
+
+###
+
+GET https://{{host}}/authors HTTP/1.1
+Content-Type: {{contentType}}
+```
+
+### Request Variables
+
+Name requests to reference their responses:
+
+```http
+# @name login
+POST https://api.example.com/login HTTP/1.1
+Content-Type: application/json
+
+{
+    "username": "user",
+    "password": "pass"
+}
+
+###
+
+@authToken = {{login.response.headers.Authorization}}
+
+# @name getProfile
+GET https://api.example.com/profile HTTP/1.1
+Authorization: {{authToken}}
+```
+
+### System Variables
+
+Use built-in dynamic variables:
+
+```http
+POST https://api.example.com/comments HTTP/1.1
+Content-Type: application/json
+
+{
+    "id": "{{$guid}}",
+    "timestamp": "{{$timestamp}}",
+    "created": "{{$datetime iso8601}}",
+    "random": "{{$randomInt 1 100}}"
+}
+```
+
+Available system variables:
+- `{{$guid}}` - Generate UUID
+- `{{$timestamp}}` - Current timestamp  
+- `{{$datetime iso8601}}` - Current datetime in ISO8601 format
+- `{{$randomInt min max}}` - Random integer between min and max
+
+## Authentication
+
+### Basic Auth
+```http
+GET https://httpbin.org/basic-auth/user/passwd HTTP/1.1
+Authorization: Basic user passwd
+```
+
+### Bearer Token
+```http
+GET https://api.example.com/data HTTP/1.1
+Authorization: Bearer your-token-here
+```
+
+## File References
+
+Reference external files for request bodies:
+
+```http
+POST https://example.com/upload HTTP/1.1
+Content-Type: application/xml
+
+< ./request-body.xml
+```
+
+Use `<@` to process variables in the file:
+
+```http
+POST https://example.com/upload HTTP/1.1
+Content-Type: application/xml
+
+<@ ./request-body-with-variables.xml
+```
+
+## Sending Requests
+- Click "Send Request" link above the request
+- Use `Ctrl+Alt+R` (Windows/Linux) or `Cmd+Alt+R` (macOS)
+- Right-click and select "Send Request"
+- Press `F1` and type "Rest Client: Send Request"
