@@ -7,19 +7,15 @@
     "tt": "./src/index.js"
   },
   "scripts": {
-    "test": "uvu tests",
-    "docs:check": "node scripts/check-docs.js"
+    "test": "uvu tests"
   },
   "keywords": [],
-  "author": "",
+  "author": "David Wells",
   "license": "ISC",
   "dependencies": {
     "commander": "^11.1.0",
     "debug": "^4.3.4",
     "fuse.js": "^7.0.0",
     "uvu": "^0.5.6"
-  },
-  "devDependencies": {
-    "eslint": "^8.56.0"
   }
 }
