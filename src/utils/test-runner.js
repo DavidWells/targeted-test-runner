@@ -17,7 +17,7 @@ const executeTest = (testFile, opts = {}) => {
     }
 
     if (bestMatch.description) {
-      console.log(`Running test: "${bestMatch.description}" in ${nicePath(bestMatch.file)}`)
+      console.log(`\n🏃 Running test: "${bestMatch.description}" in ${nicePath(bestMatch.file)}\n`)
     }
     const process = spawn('node', [testFile], {
       stdio: 'inherit'

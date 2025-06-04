@@ -14,12 +14,39 @@ program
   .version('1.0.0')
   .description('Run targeted tests by description')
   .option('-a, --all', 'Run all matching tests instead of just the best match')
-  .argument('<args...>', 'Test description or [file] and description')
+  .argument('[args...]', 'Test description or [file] and description')
   .action(async (args, options) => {
     logger.cli('Initializing CLI with version 1.0.0')
     let testFiles = []
     let allTests = []
     let testFile, testDescription
+
+    // If no args provided, run all test files
+    if (!args || args.length === 0) {
+      testFiles = findTestFiles()
+      if (testFiles.length === 0) {
+        logger.cli('No test files found')
+        process.exit(1)
+      }
+      console.log(`Found ${testFiles.length} test files:`)
+      testFiles.forEach(file => console.log(` - ${nicePath(file)}`))
+      console.log()
+
+      let exitCode = 0
+      for (const file of testFiles) {
+        logger.cli(`Running test file: ${nicePath(file)}`)
+        try {
+          const testExitCode = await executeTest(file)
+          if (testExitCode !== 0) {
+            exitCode = testExitCode
+          }
+        } catch (error) {
+          logger.cli('Error executing test:', error)
+          exitCode = 1
+        }
+      }
+      process.exit(exitCode)
+    }
 
     if (args.length === 1) {
       testDescription = args[0]
@@ -32,6 +59,11 @@ program
       // If the first arg looks like a file, use it
       const possibleFile = path.resolve(args[0])
       if (fs.existsSync(possibleFile) && fs.statSync(possibleFile).isFile()) {
+        // Check if file is in node_modules
+        if (possibleFile.includes('node_modules')) {
+          logger.cli('Cannot run tests from node_modules directory')
+          process.exit(1)
+        }
         testFile = possibleFile
         testDescription = args.slice(1).join(' ')
         testFiles = [testFile]
@@ -44,9 +76,6 @@ program
           process.exit(1)
         }
       }
-    } else {
-      logger.cli('No test description provided')
-      process.exit(1)
     }
 
     // Search for matching tests
@@ -72,10 +101,9 @@ program
     }
 
     const uniqueFiles = [...new Set(results.map(result => result.item.file))]
-    console.log(`Matched ${results.length} tests in ${uniqueFiles.length} files`)
+    console.log(`🔎 Matched ${results.length} tests in ${uniqueFiles.length} files`)
 
     console.log(results.map(result => ` - "${result.item.description}" in ${nicePath(result.item.file)}`).join('\n'))
-    console.log()
 
     // Process matches
     const matches = options.all ? results : [results[0]]

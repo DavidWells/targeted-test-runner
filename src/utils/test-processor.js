@@ -11,11 +11,12 @@ const findTestFiles = (dir = process.cwd()) => {
     
     for (const entry of entries) {
       const fullPath = path.join(currentDir, entry.name)
+      // console.log('fullPath', fullPath)
       
-      // Skip node_modules directories
+      // Skip node_modules and .git directories
       if (entry.isDirectory()) {
-        if (entry.name === 'node_modules') {
-          logger.processor('Skipping node_modules directory:', fullPath)
+        if (entry.name === 'node_modules' || entry.name === '.git') {
+          logger.processor('Skipping directory:', fullPath)
           continue
         }
         traverse(fullPath)

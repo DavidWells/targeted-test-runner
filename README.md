@@ -12,6 +12,12 @@ npm install -g targeted-test-runner
 
 ### Basic Usage
 
+Run all test files in the current directory:
+
+```bash
+tt
+```
+
 Run a specific test by its description:
 
 ```bash
@@ -20,10 +26,10 @@ tt 'test description'
 
 The tool will:
 1. Find all test files in the current directory
-2. Fuzzy match the test description
-3. Create a temporary file with `.only` added to the matched test
-4. Run the test
-5. Clean up the temporary file
+2. Fuzzy match the test description (if provided)
+3. Create a temporary file with `.only` added to the matched test (if description provided)
+4. Run the test(s)
+5. Clean up any temporary files
 
 ### Advanced Usage
 
@@ -69,6 +75,9 @@ test.run()
 Run specific tests:
 
 ```bash
+# Run all test files in the directory
+tt
+
 # Run the best matching test
 tt 'test two'
 
