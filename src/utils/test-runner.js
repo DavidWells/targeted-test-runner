@@ -1,11 +1,23 @@
 const { spawn } = require('child_process')
+const fs = require('fs')
 const logger = require('./logger')
 
-const executeTest = (testFile, { bestMatch, testDescription }) => {
+const executeTest = (testFile, opts = {}) => {
+  const { bestMatch = {} } = opts
   logger.runner('Executing test file:', testFile)
   
   return new Promise((resolve, reject) => {
-    console.log(`Testing "${bestMatch.description}" in ${bestMatch.file}`)
+    // Check if file exists
+    if (!fs.existsSync(testFile)) {
+      const error = new Error(`Test file not found: ${testFile}`)
+      error.code = 'ENOENT'
+      reject(error)
+      return
+    }
+
+    if (bestMatch.description) {
+      console.log(`Testing "${bestMatch.description}" in ${bestMatch.file}`)
+    }
     const process = spawn('node', [testFile], {
       stdio: 'inherit'
     })

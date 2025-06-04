@@ -5,7 +5,7 @@ const fs = require('fs')
 const { executeTest } = require('../../src/utils/test-runner')
 
 test('executeTest runs test file', async () => {
-  const testFile = path.join(__dirname, '../../fixtures/example.test.js')
+  const testFile = path.join(__dirname, '../../fixtures/example-quotes-single.test.js')
   const exitCode = await executeTest(testFile)
   assert.is(exitCode, 0)
 })

@@ -40,7 +40,7 @@ program
     
     const results = fuse.search(testDescription)
     if (results.length === 0) {
-      logger.cli('No matching tests found')
+      console.log('No matching tests found')
       process.exit(1)
     }
 

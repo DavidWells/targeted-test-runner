@@ -13,8 +13,9 @@ test('test processor functions exist', () => {
 
 test('findTestFiles finds test files', () => {
   const files = findTestFiles(path.join(__dirname, '../../fixtures'))
-  assert.is(files.length, 1)
-  assert.is(files[0].endsWith('example.test.js'), true)
+  const readDirFiles = fs.readdirSync(path.join(__dirname, '../../fixtures'))
+  assert.is(files.length, readDirFiles.length)
+  assert.is(files[0].endsWith('.test.js'), true)
 })
 
 test('findTestFiles excludes node_modules', () => {
@@ -37,7 +38,7 @@ test('findTestFiles excludes node_modules', () => {
 })
 
 test('readTestFile reads file content', () => {
-  const content = readTestFile(path.join(__dirname, '../../fixtures/example.test.js'))
+  const content = readTestFile(path.join(__dirname, '../../fixtures/example-quotes-single.test.js'))
   assert.type(content, 'string')
   assert.is(content.includes('test one'), true)
 })
@@ -66,7 +67,7 @@ test('modifyTestFile adds .only to matching test with backticks', () => {
 })
 
 test('createTempFile creates temporary file', () => {
-  const testPath = path.join(__dirname, '../../fixtures/example.test.js')
+  const testPath = path.join(__dirname, '../../fixtures/example-quotes-single.test.js')
   const tempPath = createTempFile('test content', testPath)
   assert.is(fs.existsSync(tempPath), true)
   fs.unlinkSync(tempPath)
