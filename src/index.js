@@ -4,12 +4,14 @@ const { program } = require('commander')
 const Fuse = require('fuse.js')
 const logger = require('./utils/logger')
 const { findTestFiles, readTestFile, modifyTestFile, createTempFile } = require('./utils/test-processor')
+const { executeTest } = require('./utils/test-runner')
+const { cleanupTempFile } = require('./utils/cleanup')
 
 program
   .version('1.0.0')
   .description('Run targeted tests by description')
   .argument('<test-description>', 'Description of the test to run')
-  .action((testDescription) => {
+  .action(async (testDescription) => {
     logger.cli('Initializing CLI with version 1.0.0')
     
     // Find all test files
@@ -52,6 +54,21 @@ program
     const tempFile = createTempFile(modified, bestMatch.file)
     
     logger.cli(`Created temporary file: ${tempFile}`)
+    
+    try {
+      // Execute the test
+      const exitCode = await executeTest(tempFile)
+      
+      // Clean up
+      cleanupTempFile(tempFile)
+      
+      // Exit with test status
+      process.exit(exitCode)
+    } catch (error) {
+      logger.cli('Error executing test:', error)
+      cleanupTempFile(tempFile)
+      process.exit(1)
+    }
   })
 
 program.parse() 
