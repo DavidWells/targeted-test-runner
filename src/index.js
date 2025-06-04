@@ -25,9 +25,9 @@ program
     const allTests = []
     testFiles.forEach(file => {
       const content = readTestFile(file)
-      const testMatches = content.match(/test\(['"]([^'"]+)['"]/g) || []
+      const testMatches = content.match(/test\([`'"]([^`'"]+)[`'"]/g) || []
       testMatches.forEach(match => {
-        const description = match.match(/test\(['"]([^'"]+)['"]/)[1]
+        const description = match.match(/test\([`'"]([^`'"]+)[`'"]/)[1]
         allTests.push({ file, description })
       })
     })

@@ -23,9 +23,24 @@ test('readTestFile reads file content', () => {
   assert.is(content.includes('test one'), true)
 })
 
-test('modifyTestFile adds .only to matching test', () => {
+test('modifyTestFile adds .only to matching test with single quotes', () => {
   const content = `test('test one', () => {})
 test('test two', () => {})`
+  const modified = modifyTestFile(content, 'test two')
+  assert.is(modified.includes('test.only('), true)
+  assert.is(modified.includes('test two'), true)
+})
+
+test('modifyTestFile adds .only to matching test with double quotes', () => {
+  const content = `test("test one", () => {})
+test("test two", () => {})`
+  const modified = modifyTestFile(content, 'test two')
+  assert.is(modified.includes('test.only('), true)
+  assert.is(modified.includes('test two'), true)
+})
+
+test('modifyTestFile adds .only to matching test with backticks', () => {
+  const content = 'test(`test one`, () => {})\ntest(`test two`, () => {})'
   const modified = modifyTestFile(content, 'test two')
   assert.is(modified.includes('test.only('), true)
   assert.is(modified.includes('test two'), true)

@@ -34,7 +34,9 @@ const modifyTestFile = (content, testDescription) => {
   logger.processor('Modifying test file for description:', testDescription)
   const lines = content.split('\n')
   const modifiedLines = lines.map(line => {
-    if (line.includes(`test('${testDescription}'`) || line.includes(`test("${testDescription}"`)) {
+    if (line.includes(`test('${testDescription}'`) || 
+        line.includes(`test("${testDescription}"`) || 
+        line.includes(`test(\`${testDescription}\``)) {
       return line.replace('test(', 'test.only(')
     }
     return line
