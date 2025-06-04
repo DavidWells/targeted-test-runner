@@ -53,11 +53,12 @@ tt -a 'test description'
 tt ./path/to/test.js -a 'test description'
 ```
 
-#### Examples
+#### Example
 
 Given a test file:
 
 ```js
+// test-file.test.js
 const { test } = require('uvu')
 const assert = require('uvu/assert')
 
@@ -66,6 +67,28 @@ test('test one', () => {
 })
 
 test('test two', () => {
+  assert.equal(2, 2)
+})
+
+test.run()
+```
+
+You can target specific tests.
+
+`tt test-file.test.js 'two'`
+
+This will automagically create a temp file with `test.only` applied to our matches
+
+```js
+// test-file.test.js
+const { test } = require('uvu')
+const assert = require('uvu/assert')
+
+test('test one', () => {
+  assert.equal(1, 1)
+})
+
+test.only('test two', () => {
   assert.equal(2, 2)
 })
 
