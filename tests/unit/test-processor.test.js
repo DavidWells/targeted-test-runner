@@ -17,6 +17,25 @@ test('findTestFiles finds test files', () => {
   assert.is(files[0].endsWith('example.test.js'), true)
 })
 
+test('findTestFiles excludes node_modules', () => {
+  // Create a temporary directory structure
+  const tempDir = path.join(__dirname, '../../temp-test-dir')
+  const nodeModulesDir = path.join(tempDir, 'node_modules')
+  const testFile = path.join(nodeModulesDir, 'test.test.js')
+  
+  fs.mkdirSync(tempDir, { recursive: true })
+  fs.mkdirSync(nodeModulesDir, { recursive: true })
+  fs.writeFileSync(testFile, 'test content')
+  
+  try {
+    const files = findTestFiles(tempDir)
+    assert.is(files.length, 0)
+  } finally {
+    // Clean up
+    fs.rmSync(tempDir, { recursive: true, force: true })
+  }
+})
+
 test('readTestFile reads file content', () => {
   const content = readTestFile(path.join(__dirname, '../../fixtures/example.test.js'))
   assert.type(content, 'string')

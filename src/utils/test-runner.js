@@ -1,10 +1,11 @@
 const { spawn } = require('child_process')
 const logger = require('./logger')
 
-const executeTest = (testFile) => {
+const executeTest = (testFile, { bestMatch, testDescription }) => {
   logger.runner('Executing test file:', testFile)
   
   return new Promise((resolve, reject) => {
+    console.log(`Testing "${bestMatch.description}" in ${bestMatch.file}`)
     const process = spawn('node', [testFile], {
       stdio: 'inherit'
     })
@@ -23,4 +24,4 @@ const executeTest = (testFile) => {
 
 module.exports = {
   executeTest
-} 
+}

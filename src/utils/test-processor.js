@@ -12,7 +12,12 @@ const findTestFiles = (dir = process.cwd()) => {
     for (const entry of entries) {
       const fullPath = path.join(currentDir, entry.name)
       
+      // Skip node_modules directories
       if (entry.isDirectory()) {
+        if (entry.name === 'node_modules') {
+          logger.processor('Skipping node_modules directory:', fullPath)
+          continue
+        }
         traverse(fullPath)
       } else if (entry.name.endsWith('.test.js')) {
         files.push(fullPath)

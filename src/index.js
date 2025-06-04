@@ -43,6 +43,8 @@ program
       logger.cli('No matching tests found')
       process.exit(1)
     }
+
+    console.log(results)
     
     // Process the best match
     const bestMatch = results[0].item
@@ -57,7 +59,10 @@ program
     
     try {
       // Execute the test
-      const exitCode = await executeTest(tempFile)
+      const exitCode = await executeTest(tempFile, {
+        bestMatch,
+        testDescription
+      })
       
       // Clean up
       cleanupTempFile(tempFile)

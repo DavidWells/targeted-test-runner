@@ -11,11 +11,11 @@ function otherCodeTwo() {
   return 2
 }
 
-test('test one', () => {
+test("test one", () => {
   assert.equal(otherCode(), 1)
 })
 
-test('test two', () => {
+test("test two", () => {
   assert.equal(otherCodeTwo(), 2)
 })
 
