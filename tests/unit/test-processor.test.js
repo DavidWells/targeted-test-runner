@@ -14,7 +14,10 @@ test('test processor functions exist', () => {
 test('findTestFiles finds test files', () => {
   const files = findTestFiles(path.join(__dirname, '../../fixtures'))
   const readDirFiles = fs.readdirSync(path.join(__dirname, '../../fixtures'))
-  assert.is(files.length, readDirFiles.length)
+  const testFiles = readDirFiles.filter(file => file.endsWith('.test.js'))
+  const subDirFiles = fs.readdirSync(path.join(__dirname, '../../fixtures/sub-dir'))
+  const subDirTestFiles = subDirFiles.filter(file => file.endsWith('.test.js'))
+  assert.is(files.length, testFiles.length + subDirTestFiles.length)
   assert.is(files[0].endsWith('.test.js'), true)
 })
 

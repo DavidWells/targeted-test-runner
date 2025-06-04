@@ -27,6 +27,20 @@ const findTestFiles = (dir = process.cwd()) => {
     }
   }
   
+  // Ensure the directory exists
+  if (!fs.existsSync(dir)) {
+    logger.processor('Directory does not exist:', dir)
+    return []
+  }
+
+  // If it's a file, return just that file if it's a test file
+  if (fs.statSync(dir).isFile()) {
+    if (dir.endsWith('.test.js')) {
+      return [dir]
+    }
+    return []
+  }
+
   traverse(dir)
   return files
 }
