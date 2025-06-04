@@ -4,7 +4,10 @@ const { execSync } = require('child_process')
 const path = require('path')
 
 test('CLI finds and matches test', () => {
-  const output = execSync('DEBUG=tt:* node src/index.js "test two"', { encoding: 'utf8' })
+  const cmd = 'DEBUG=tt:* node src/index.js "test two"'
+  console.log('cmd', cmd)
+  const output = execSync(cmd, { encoding: 'utf8' })
+  console.log('output', output)
   assert.is(output.includes('Running test: "test two"'), true, 'should match test two')
 })
 

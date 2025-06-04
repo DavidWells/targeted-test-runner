@@ -101,15 +101,21 @@ Run specific tests:
 # Run all test files in the directory
 tt
 
-# Run the best matching test
-tt 'test two'
+# Run the best matching test with description matching "foo"
+tt 'foo'
 
-# Run all tests containing 'test'
-tt 'test' -a
-tt 'test' --all
+# Run all tests containing 'api requests'
+tt 'api requests' -a
+tt 'api requests' --all
 
-# Run tests from a specific file
-tt ./path/to/test.js 'test two'
+# Run tests only from a specific file
+tt ./path/to/test.js 'test description xyz'
+
+# Run all tests in a dir
+tt ./path/to/dir
+
+# Run tests only from a dir that match `xyz`
+tt ./path/to/dir 'xyz'
 
 # Run all matching tests from a specific file
 tt ./path/to/test.js 'test' -a 
