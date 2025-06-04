@@ -21,7 +21,13 @@ const formatTestOutput = (testDescriptions) => {
   }).join('\n')
 }
 
-const listTestDescriptions = async (testFiles, fuzzyResults, testDescription, listIsEnabled) => {
+const listTestDescriptions = async ({
+  testFiles, 
+  fuzzyResults, 
+  testDescription, 
+  listIsEnabled, 
+  allFlag
+}) => {
   const allTestDescriptions = []
   
   if (fuzzyResults) {
@@ -53,7 +59,7 @@ const listTestDescriptions = async (testFiles, fuzzyResults, testDescription, li
 
   const choices = [
     {
-      title: testDescription ? `✓ Run all matching tests` : '✓ Run all tests',
+      title: testDescription ? `✓ Run all ${fuzzyResults.length} matching tests` : '✓ Run all tests',
       value: { runAll: true, testDescription }
     },
     // Include test files that contain more than 1 test as "Run all tests in [file]"
@@ -118,13 +124,7 @@ const runSingleTest = async (testInfo, testDescription = null, copyToClipboard =
 
     if (copyToClipboard) {
       // Copy command to clipboard
-      const isLocalDev = (process.argv[1] || '').includes('targeted-test-runner/src')
-      const cmdToCopy = (isLocalDev) ? 'node src/index.js' : 'tt'
-      const command = `${cmdToCopy} ${cleanMacPath(file)} "${description}"`
-      const clipboardy = await import('clipboardy')
-      await clipboardy.default.write(command)
-      console.log('\n📋 Command copied to clipboard:')
-      console.log(command)
+      await copyCommandToClipboard(`${cleanMacPath(file)} "${description}"`)
     }
 
     return testExitCode
@@ -135,6 +135,17 @@ const runSingleTest = async (testInfo, testDescription = null, copyToClipboard =
   }
 }
 
+async function copyCommandToClipboard(commandValue) {
+  // Copy command to clipboard
+  const isLocalDev = (process.argv[1] || '').includes('targeted-test-runner/src')
+  const cmdToCopy = (isLocalDev) ? 'node src/index.js' : 'tt'
+  const command = `${cmdToCopy} ${commandValue}`
+  const clipboardy = await import('clipboardy')
+  await clipboardy.default.write(command)
+  console.log('\n📋 Command copied to clipboard:')
+  console.log(command)
+}
+
 function cleanMacPath(path) {
   return path.replace(/^\/Users\/([A-Za-z0-9_-]*)\//, '~/')
 }
@@ -143,7 +154,8 @@ const handleTestSelection = async ({
   testFiles,
   fuzzyResults,
   testDescription = null,
-  listIsEnabled = false
+  listIsEnabled = false,
+  allFlag = false
 }) => {
   // Skip interactive prompt if not in TTY environment
   if (!process.stdout.isTTY) {
@@ -157,50 +169,59 @@ const handleTestSelection = async ({
     process.exit(testExitCode)
   }
 
-  const selectedTest = await listTestDescriptions(testFiles, fuzzyResults, testDescription, listIsEnabled)
-  if (selectedTest) {
-    // console.log('selectedTest', selectedTest)
-    if (selectedTest.cancel) {
-      console.log('Selection cancelled')
-      process.exit(0)
-    } else if (selectedTest.runAll) {
-      let exitCode = 0
-      if (selectedTest.testDescription && fuzzyResults) {
-        console.log('Running only the matching tests')
-        // Run only the matching tests
-        for (const result of fuzzyResults) {
-          const testExitCode = await runSingleTest(result.item, selectedTest.testDescription, true)
+  const selectedTest = await listTestDescriptions({
+    testFiles, 
+    fuzzyResults, 
+    testDescription, 
+    listIsEnabled, 
+    allFlag
+  })
+
+  if (!selectedTest) {
+    process.exit(0)
+  }
+
+  // console.log('selectedTest', selectedTest)
+  if (selectedTest.cancel) {
+    console.log('Selection cancelled')
+    process.exit(0)
+  } else if (selectedTest.runAll) {
+    let exitCode = 0
+    if (selectedTest.testDescription && fuzzyResults) {
+      console.log('Running only the matching tests')
+      // Run only the matching tests
+      for (const result of fuzzyResults) {
+        const testExitCode = await runSingleTest(result.item, selectedTest.testDescription)
+        if (testExitCode !== 0) {
+          exitCode = testExitCode
+        }
+      }
+      await copyCommandToClipboard(`"${selectedTest.testDescription}" --all`)
+    } else {
+      console.log('Running all tests in all files')
+      // Run all tests in all files
+      for (const file of testFiles) {
+        logger.cli(`Running test file: ${nicePath(file)}`)
+        try {
+          const testExitCode = await executeTest(file)
           if (testExitCode !== 0) {
             exitCode = testExitCode
           }
-        }
-      } else {
-        console.log('Running all tests in all files')
-        // Run all tests in all files
-        for (const file of testFiles) {
-          logger.cli(`Running test file: ${nicePath(file)}`)
-          try {
-            const testExitCode = await executeTest(file)
-            if (testExitCode !== 0) {
-              exitCode = testExitCode
-            }
-          } catch (error) {
-            logger.cli('Error executing test:', error)
-            exitCode = 1
-          }
+        } catch (error) {
+          logger.cli('Error executing test:', error)
+          exitCode = 1
         }
       }
-      process.exit(exitCode)
-    } else if (selectedTest.runAllInFile) {
-      logger.cli(`Running all tests in: ${nicePath(selectedTest.file)}`)
-      const testExitCode = await executeTest(selectedTest.file)
-      process.exit(testExitCode)
-    } else {
-      const exitCode = await runSingleTest(selectedTest, testDescription, true)
-      process.exit(exitCode)
     }
+    process.exit(exitCode)
+  } else if (selectedTest.runAllInFile) {
+    logger.cli(`Running all tests in: ${nicePath(selectedTest.file)}`)
+    const testExitCode = await executeTest(selectedTest.file)
+    process.exit(testExitCode)
+  } else {
+    const exitCode = await runSingleTest(selectedTest, testDescription, true)
+    process.exit(exitCode)
   }
-  process.exit(0)
 }
 
 program
@@ -216,6 +237,7 @@ program
     let allTests = []
     let testPath, testDescription
     const listIsEnabled = options.list || options.l || options.ls
+    const allFlag = options.all || options.a
 
     // If no args provided, run all test files
     if (!args || args.length === 0) {
@@ -226,11 +248,12 @@ program
         process.exit(1)
       }
 
-      if (options.list || options.l || options.ls) {
+      if (listIsEnabled) {
         await handleTestSelection({
           testFiles,
           fuzzyResults: null,
-          listIsEnabled
+          listIsEnabled,
+          allFlag
         })
       }
 
@@ -277,7 +300,8 @@ program
           await handleTestSelection({
             testFiles,
             fuzzyResults: null,
-            listIsEnabled
+            listIsEnabled,
+            allFlag
           })
         }
 
@@ -337,7 +361,8 @@ program
             testFiles,
             fuzzyResults: results,
             testDescription,
-            listIsEnabled
+            listIsEnabled,
+            allFlag
           })
         }
       }
@@ -363,7 +388,8 @@ program
           await handleTestSelection({
             testFiles,
             fuzzyResults: null,
-            listIsEnabled
+            listIsEnabled,
+            allFlag
           })
         }
       } else {
@@ -379,7 +405,8 @@ program
           await handleTestSelection({
             testFiles,
             fuzzyResults: null,
-            listIsEnabled
+            listIsEnabled,
+            allFlag
           })
         }
       }
@@ -416,7 +443,8 @@ program
         testFiles: filteredTestFiles,
         fuzzyResults: results,
         testDescription,
-        listIsEnabled
+        listIsEnabled,
+        allFlag
       })
     }
 
