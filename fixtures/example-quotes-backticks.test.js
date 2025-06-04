@@ -11,11 +11,11 @@ function otherCodeTwo() {
   return 2
 }
 
-test("double quotes one", () => {
+test(`backticks one`, () => {
   assert.equal(otherCode(), 1)
 })
 
-test("double quotes two", () => {
+test(`backticks two`, () => {
   assert.equal(otherCodeTwo(), 2)
 })
 
