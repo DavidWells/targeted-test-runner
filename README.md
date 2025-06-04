@@ -10,6 +10,8 @@ npm install -g targeted-test-runner
 
 ## Usage
 
+### Basic Usage
+
 Run a specific test by its description:
 
 ```bash
@@ -23,7 +25,29 @@ The tool will:
 4. Run the test
 5. Clean up the temporary file
 
-### Example
+### Advanced Usage
+
+#### Run Tests from a Specific File
+
+Run tests from a specific file by providing the file path first:
+
+```bash
+tt ./path/to/test.js 'test description'
+```
+
+#### Run All Matching Tests
+
+Use the `-a` or `--all` flag to run all matching tests instead of just the best match:
+
+```bash
+# Run all tests matching the description
+tt -a 'test description'
+
+# Run all tests from a specific file matching the description
+tt ./path/to/test.js -a 'test description'
+```
+
+#### Examples
 
 Given a test file:
 
@@ -42,10 +66,20 @@ test('test two', () => {
 test.run()
 ```
 
-Run a specific test:
+Run specific tests:
 
 ```bash
+# Run the best matching test
 tt 'test two'
+
+# Run all tests containing 'test'
+tt -a 'test'
+
+# Run tests from a specific file
+tt ./path/to/test.js 'test two'
+
+# Run all matching tests from a specific file
+tt ./path/to/test.js -a 'test'
 ```
 
 ## Configuration

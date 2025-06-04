@@ -13,8 +13,9 @@ const nicePath = require('./utils/nice-path')
 program
   .version('1.0.0')
   .description('Run targeted tests by description')
+  .option('-a, --all', 'Run all matching tests instead of just the best match')
   .argument('<args...>', 'Test description or [file] and description')
-  .action(async (args) => {
+  .action(async (args, options) => {
     logger.cli('Initializing CLI with version 1.0.0')
     let testFiles = []
     let allTests = []
@@ -76,35 +77,44 @@ program
     console.log(results.map(result => ` - "${result.item.description}" in ${nicePath(result.item.file)}`).join('\n'))
     console.log()
 
+    // Process matches
+    const matches = options.all ? results : [results[0]]
+    let exitCode = 0
 
-    // Process the best match
-    const bestMatch = results[0].item
-    logger.cli(`Matched test: "${bestMatch.description}" in ${nicePath(bestMatch.file)}`)
+    for (const result of matches) {
+      const bestMatch = result.item
+      logger.cli(`Running test: "${bestMatch.description}" in ${nicePath(bestMatch.file)}`)
 
-    // Modify and create temp file
-    const content = readTestFile(bestMatch.file)
-    const modified = modifyTestFile(content, bestMatch.description)
-    const tempFile = createTempFile(modified, bestMatch.file)
+      // Modify and create temp file
+      const content = readTestFile(bestMatch.file)
+      const modified = modifyTestFile(content, bestMatch.description)
+      const tempFile = createTempFile(modified, bestMatch.file)
 
-    logger.cli(`Created temporary file: ${tempFile}`)
+      logger.cli(`Created temporary file: ${tempFile}`)
 
-    try {
-      // Execute the test
-      const exitCode = await executeTest(tempFile, {
-        bestMatch,
-        testDescription
-      })
+      try {
+        // Execute the test
+        const testExitCode = await executeTest(tempFile, {
+          bestMatch,
+          testDescription
+        })
 
-      // Clean up
-      cleanupTempFile(tempFile)
+        // Update overall exit code if any test fails
+        if (testExitCode !== 0) {
+          exitCode = testExitCode
+        }
 
-      // Exit with test status
-      process.exit(exitCode)
-    } catch (error) {
-      logger.cli('Error executing test:', error)
-      cleanupTempFile(tempFile)
-      process.exit(1)
+        // Clean up
+        cleanupTempFile(tempFile)
+      } catch (error) {
+        logger.cli('Error executing test:', error)
+        cleanupTempFile(tempFile)
+        exitCode = 1
+      }
     }
+
+    // Exit with overall test status
+    process.exit(exitCode)
   })
 
 program.parse() 
