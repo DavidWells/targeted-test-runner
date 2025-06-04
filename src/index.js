@@ -1,10 +1,9 @@
 #!/usr/bin/env node
-
-const { program } = require('commander')
-const Fuse = require('fuse.js')
-const path = require('path')
 const fs = require('fs')
+const path = require('path')
+const Fuse = require('fuse.js')
 const prompts = require('prompts')
+const { program } = require('commander')
 const logger = require('./utils/logger')
 const { findTestFiles, readTestFile, modifyTestFile, createTempFile } = require('./utils/test-processor')
 const { executeTest } = require('./utils/test-runner')
@@ -96,7 +95,7 @@ const listTestDescriptions = async (testFiles, fuzzyResults, testDescription, li
   }
 }
 
-const runSingleTest = async (testInfo, testDescription = null) => {
+const runSingleTest = async (testInfo, testDescription = null, copyToClipboard = false) => {
   const { file, description } = testInfo
   logger.cli(`Running test: "${description}" in ${nicePath(file)}`)
 
@@ -116,12 +115,28 @@ const runSingleTest = async (testInfo, testDescription = null) => {
 
     // Clean up
     cleanupTempFile(tempFile)
+
+    if (copyToClipboard) {
+      // Copy command to clipboard
+      const isLocalDev = (process.argv[1] || '').includes('targeted-test-runner/src')
+      const cmdToCopy = (isLocalDev) ? 'node src/index.js' : 'tt'
+      const command = `${cmdToCopy} ${cleanMacPath(file)} "${description}"`
+      const clipboardy = await import('clipboardy')
+      await clipboardy.default.write(command)
+      console.log('\n📋 Command copied to clipboard:')
+      console.log(command)
+    }
+
     return testExitCode
   } catch (error) {
     logger.cli('Error executing test:', error)
     cleanupTempFile(tempFile)
     return 1
   }
+}
+
+function cleanMacPath(path) {
+  return path.replace(/^\/Users\/([A-Za-z0-9_-]*)\//, '~/')
 }
 
 const handleTestSelection = async ({
@@ -151,14 +166,16 @@ const handleTestSelection = async ({
     } else if (selectedTest.runAll) {
       let exitCode = 0
       if (selectedTest.testDescription && fuzzyResults) {
+        console.log('Running only the matching tests')
         // Run only the matching tests
         for (const result of fuzzyResults) {
-          const testExitCode = await runSingleTest(result.item, selectedTest.testDescription)
+          const testExitCode = await runSingleTest(result.item, selectedTest.testDescription, true)
           if (testExitCode !== 0) {
             exitCode = testExitCode
           }
         }
       } else {
+        console.log('Running all tests in all files')
         // Run all tests in all files
         for (const file of testFiles) {
           logger.cli(`Running test file: ${nicePath(file)}`)
@@ -179,7 +196,7 @@ const handleTestSelection = async ({
       const testExitCode = await executeTest(selectedTest.file)
       process.exit(testExitCode)
     } else {
-      const exitCode = await runSingleTest(selectedTest, testDescription)
+      const exitCode = await runSingleTest(selectedTest, testDescription, true)
       process.exit(exitCode)
     }
   }
@@ -310,7 +327,7 @@ program
 
         if (results.length === 1) {
           const bestMatch = results[0].item
-          const testExitCode = await runSingleTest(bestMatch, testDescription)
+          const testExitCode = await runSingleTest(bestMatch, testDescription, true)
           //console.log('testExitCode', testExitCode)
           process.exit(testExitCode)
         }
