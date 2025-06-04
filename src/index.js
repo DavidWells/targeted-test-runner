@@ -11,6 +11,17 @@ const { executeTest } = require('./utils/test-runner')
 const { cleanupTempFile } = require('./utils/cleanup')
 const nicePath = require('./utils/nice-path')
 
+const formatTestOutput = (testDescriptions) => {
+  // Calculate the maximum length of file paths for alignment
+  const maxPathLength = Math.max(...testDescriptions.map(({ file }) => nicePath(file).length))
+  const paddingLength = maxPathLength + 5 // Add 5 for the " ◦ " separator
+
+  return testDescriptions.map(({ file, description }) => {
+    const paddedPath = nicePath(file).padEnd(paddingLength)
+    return `   - ${paddedPath}"${description}"`
+  }).join('\n')
+}
+
 const listTestDescriptions = async (testFiles, fuzzyResults, testDescription, listIsEnabled) => {
   const allTestDescriptions = []
   
@@ -22,11 +33,8 @@ const listTestDescriptions = async (testFiles, fuzzyResults, testDescription, li
     allTestDescriptions.push(...findTestsInFiles(testFiles))
   }
   
-  console.log(`📋 Found ${allTestDescriptions.length} tests in ${testFiles.length} test files:`)
-
-  allTestDescriptions.forEach(({ file, description }) => {
-    console.log(`   - "${description}" in ${nicePath(file)}`)
-  })
+  console.log(`\n🔎 Found ${allTestDescriptions.length} tests in ${testFiles.length} test files:`)
+  console.log(formatTestOutput(allTestDescriptions))
   console.log()
 
   if (listIsEnabled) {
@@ -136,7 +144,7 @@ const handleTestSelection = async ({
 
   const selectedTest = await listTestDescriptions(testFiles, fuzzyResults, testDescription, listIsEnabled)
   if (selectedTest) {
-    console.log('selectedTest', selectedTest)
+    // console.log('selectedTest', selectedTest)
     if (selectedTest.cancel) {
       console.log('Selection cancelled')
       process.exit(0)
@@ -231,7 +239,7 @@ program
 
     /* Only 1 arg provided */
     if (args.length === 1) {
-      console.log('1 arg provided')
+      logger.cli('1 arg provided')
       // Check if the single argument is a file or directory path
       const possiblePath = path.resolve(args[0])
       if (fs.existsSync(possiblePath)) {
@@ -256,10 +264,11 @@ program
           })
         }
 
-        logger.cli(`Running all tests in: ${nicePath(testPath)}`)
+        console.log(`Running all tests in: ${nicePath(testPath)}\n`)
         let exitCode = 0
         for (const file of testFiles) {
           try {
+            console.log(`Running test file: ${nicePath(file)}`)
             const testExitCode = await executeTest(file)
             if (testExitCode !== 0) {
               exitCode = testExitCode
@@ -298,12 +307,11 @@ program
           console.log('No matching tests found')
           process.exit(1)
         }
-        console.log('results', results) 
 
         if (results.length === 1) {
           const bestMatch = results[0].item
           const testExitCode = await runSingleTest(bestMatch, testDescription)
-          console.log('testExitCode', testExitCode)
+          //console.log('testExitCode', testExitCode)
           process.exit(testExitCode)
         }
 
@@ -317,6 +325,7 @@ program
         }
       }
     } else if (args.length >= 2) {
+      logger.cli('2 or more args provided')
       // If the first arg looks like a file or directory, use it
       const possiblePath = path.resolve(args[0])
       if (fs.existsSync(possiblePath)) {
@@ -363,7 +372,7 @@ program
 
     // Search for matching tests
     allTests = findTestsInFiles(testFiles)
-    console.log('allTests', allTests)
+    // console.log('allTests', allTests)
     // Fuzzy match test descriptions
     const fuse = new Fuse(allTests, {
       keys: ['description'],
@@ -377,17 +386,15 @@ program
     }
 
     const uniqueFiles = [...new Set(results.map(result => result.item.file))]
-    console.log(`🔎  Matched ${results.length} tests in ${uniqueFiles.length} files`)
-
-    console.log(results.map(result => `   - "${result.item.description}" in ${nicePath(result.item.file)}`).join('\n'))
+    // console.log(`🔎  Matched ${results.length} tests in ${uniqueFiles.length} files`)
+    // console.log(formatTestOutput(results.map(result => result.item)))
 
     // If not using --all flag and multiple matches found, show interactive prompt
     if (!options.all && results.length > 1) {
-      console.log('results', results)
       // Filter found allTest to only our results matches
       const filteredAllTest = results.map(result => result.item)
       const filteredTestFiles = [...new Set(filteredAllTest.map(test => test.file))]
-      console.log('filteredTestFiles', filteredTestFiles)
+      // console.log('filteredTestFiles', filteredTestFiles)
       await handleTestSelection({
         testFiles: filteredTestFiles,
         fuzzyResults: results,
