@@ -5,8 +5,7 @@ const path = require('path')
 
 test('CLI finds and matches test', () => {
   const output = execSync('DEBUG=tt:* node src/index.js "test two"', { encoding: 'utf8' })
-  console.log(output)
-  assert.is(output.includes('Testing "test two"'), true, 'should match test two')
+  assert.is(output.includes('Running test: "test two"'), true, 'should match test two')
 })
 
 test('CLI handles no matches gracefully', () => {

@@ -8,6 +8,7 @@ const logger = require('./utils/logger')
 const { findTestFiles, readTestFile, modifyTestFile, createTempFile } = require('./utils/test-processor')
 const { executeTest } = require('./utils/test-runner')
 const { cleanupTempFile } = require('./utils/cleanup')
+const nicePath = require('./utils/nice-path')
 
 program
   .version('1.0.0')
@@ -69,9 +70,16 @@ program
       process.exit(1)
     }
 
+    const uniqueFiles = [...new Set(results.map(result => result.item.file))]
+    console.log(`Matched ${results.length} tests in ${uniqueFiles.length} files`)
+
+    console.log(results.map(result => ` - "${result.item.description}" in ${nicePath(result.item.file)}`).join('\n'))
+    console.log()
+
+
     // Process the best match
     const bestMatch = results[0].item
-    logger.cli(`Matched test: "${bestMatch.description}" in ${bestMatch.file}`)
+    logger.cli(`Matched test: "${bestMatch.description}" in ${nicePath(bestMatch.file)}`)
 
     // Modify and create temp file
     const content = readTestFile(bestMatch.file)
