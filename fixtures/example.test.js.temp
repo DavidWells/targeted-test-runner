@@ -1,0 +1,17 @@
+const { test } = require('uvu')
+const assert = require('uvu/assert')
+
+function otherCode() {
+  console.log('otherCode')
+  return 1
+}
+
+test('test one', () => {
+  assert.equal(otherCode(), 1)
+})
+
+test.only('test two', () => {
+  assert.equal(otherCode(), 2)
+})
+
+test.run()
