@@ -68,9 +68,20 @@ function getTestFilesOrExit(testPath) {
 /**
  * Runs all tests in the provided list of files.
  */
-async function runAllTestsInFiles(filesToRun, description = 'all tests') {
+async function runAllTestsInFiles(filesToRun, description = 'all tests', testCounts) {
   logger.cli(`Running ${description}:`)
-  filesToRun.forEach((file) => console.log(` - ${nicePath(file)}`))
+  // Get the filesToRun from testCounts
+  const filteredTestCounts = Object.entries(testCounts).filter(([file]) => filesToRun.includes(file))
+  
+  // Calculate max path length for alignment
+  const maxPathLength = Math.max(...filteredTestCounts.map(([file]) => nicePath(file).length))
+  const paddingLength = maxPathLength + 5 // Add 5 for the ": " separator
+
+  console.log('filesToRun:')
+  filteredTestCounts.forEach(([file, count]) => {
+    const paddedPath = nicePath(file).padEnd(paddingLength)
+    console.log(` - ${paddedPath}${count} tests`)
+  })
   console.log()
 
   let overallExitCode = 0
@@ -213,10 +224,7 @@ const listAndSelectTests = async ({
       value: { runAllFound: true },
     })
   }
-  /*
-  console.log('Debug - multiTestFiles:', multiTestFiles)
-  console.log('Debug - totalTestCounts in choices:', totalTestCounts)
-  /** */
+
   choices.push(
     ...multiTestFiles.map((file) => ({
       title: `▶ Run all ${totalTestCounts[file]} tests in file ${nicePath(file)}`,
@@ -244,7 +252,7 @@ const listAndSelectTests = async ({
     const response = await prompts({
       type: 'autocomplete',
       name: 'selectedOption',
-      message: 'Select an option',
+      message: 'Select a test',
       choices,
       suggest: (input, currentChoices) =>
         currentChoices.filter((i) => i.title.toLowerCase().includes(input.toLowerCase())),
@@ -357,11 +365,9 @@ program
         // listAndSelectTests will exit if listOnly is true
       }
 
-      console.log(`Found ${testFiles.length} test files:`)
-      testFiles.forEach(file => console.log(` - ${nicePath(file)}`))
-      console.log()
+      console.log(`Running all ${allRunnableTests.length} tests in ${process.cwd()}\n`)
 
-      const exitCode = await runAllTestsInFiles(testFiles, 'all tests')
+      const exitCode = await runAllTestsInFiles(testFiles, 'all tests', totalTestCounts)
       process.exit(exitCode)
     }
 
@@ -379,7 +385,7 @@ program
       }
 
       console.log(`Running all tests in: ${nicePath(testPath)}\n`)
-      const exitCode = await runAllTestsInFiles(testFiles, `all tests in ${nicePath(testPath)}`)
+      const exitCode = await runAllTestsInFiles(testFiles, `all tests in ${nicePath(testPath)}`, totalTestCounts)
       process.exit(exitCode)
     }
 
@@ -402,7 +408,7 @@ program
       } else {
         // No description, run all tests in the determined scope
         const scopeDesc = testPath ? `all tests in ${nicePath(testPath)}` : 'all tests in project'
-        exitCode = await runAllTestsInFiles(testFiles, scopeDesc)
+        exitCode = await runAllTestsInFiles(testFiles, scopeDesc, totalTestCounts)
       }
       process.exit(exitCode)
     }
@@ -485,7 +491,9 @@ program
         if (singleExitCode !== 0) overallExitCode = singleExitCode
       }
       if (testsToExecute.length > 0) {
-        await copyCommandToClipboard(`"${testDescription}" --all`)
+        const niceDir = nicePath(testPath)
+        const niceDirRender = (niceDir) ? `${niceDir} ` : ''
+        await copyCommandToClipboard(`${niceDirRender}"${testDescription}" --all`)
       }
     }
     process.exit(overallExitCode)
@@ -523,7 +531,7 @@ async function handleSelectionResult(
     }
   } else if (selectedOption.runAllFound) {
     // User chose "Run all found tests" (when no initial description)
-    exitCode = await runAllTestsInFiles(allFoundTestFiles, 'all found tests')
+    exitCode = await runAllTestsInFiles(allFoundTestFiles, 'all found tests', totalTestCounts)
     // No specific command to copy for "all found tests" unless we define one.
   } else if (selectedOption.runAllInFile) {
     logger.cli(`Running all tests in: ${nicePath(selectedOption.file)}`)
