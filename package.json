@@ -17,6 +17,7 @@
   "author": "David Wells",
   "license": "ISC",
   "dependencies": {
+    "@davidwells/box-logger": "^1.0.16",
     "clipboardy": "^3.0.0",
     "commander": "^11.1.0",
     "debug": "^4.3.4",

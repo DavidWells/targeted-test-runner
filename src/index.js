@@ -257,6 +257,7 @@ const listAndSelectTests = async ({
       suggest: (input, currentChoices) =>
         currentChoices.filter((i) => i.title.toLowerCase().includes(input.toLowerCase())),
     })
+    console.log()
 
     if (!response || !response.selectedOption || response.selectedOption.cancel) {
       console.log('Test selection cancelled.')
@@ -303,11 +304,11 @@ async function copyCommandToClipboard(commandValue) {
   try {
     const clipboardy = await import('clipboardy')
     await clipboardy.default.write(command)
-    console.log('📋 Command copied to clipboard:')
-    console.log(command)
+    console.log('Run tests again with:')
+    console.log(`\`${command}\``)
   } catch (err) {
     logger.cli('📋 Failed to copy command to clipboard. Manual copy:')
-    console.log(command)
+    logger.cli(command)
     // logger.error('Clipboardy error:', err); // Optional: for debugging
   }
 }

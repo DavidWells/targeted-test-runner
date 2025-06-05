@@ -1,5 +1,6 @@
 const { spawn } = require('child_process')
 const fs = require('fs')
+const { logLine } = require('@davidwells/box-logger')
 const logger = require('./logger')
 const nicePath = require('./nice-path')
 
@@ -17,7 +18,8 @@ const executeTest = (testFile, opts = {}) => {
     }
 
     if (bestMatch.description) {
-      console.log(`\n🏃  Running test: "${bestMatch.description}" in ${nicePath(bestMatch.file)}\n`)
+      logLine(`🏃  Running test: "${bestMatch.description}" in ${nicePath(bestMatch.file)}`)
+      console.log()
     }
     const process = spawn('node', [testFile], {
       stdio: 'inherit'
