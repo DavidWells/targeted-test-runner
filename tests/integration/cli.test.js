@@ -7,7 +7,8 @@ test('CLI finds and matches test', () => {
   const cmd = 'DEBUG=tt:* node src/index.js "test two"'
   console.log('cmd', cmd)
   const output = execSync(cmd, { encoding: 'utf8' })
-  console.log('output', output)
+  console.log('CMD output')
+  console.log(output)
   assert.is(output.includes('Running test: "test two"'), true, 'should match test two')
 })
 
