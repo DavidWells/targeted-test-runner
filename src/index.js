@@ -304,8 +304,9 @@ async function copyCommandToClipboard(commandValue) {
   try {
     const clipboardy = await import('clipboardy')
     await clipboardy.default.write(command)
-    console.log('Run tests again with:')
-    console.log(`\`${command}\``)
+    console.log('Run tests again with CLI command:')
+    console.log(`${command}`)
+    console.log()
   } catch (err) {
     logger.cli('📋 Failed to copy command to clipboard. Manual copy:')
     logger.cli(command)
