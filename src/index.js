@@ -286,9 +286,8 @@ async function runSingleTest(testInfo, originalSearchTerm = null, copyToClipboar
     })
     cleanupTempFile(tempFile)
 
-    if (copyToClipboard) {
-      await copyCommandToClipboard(`${cleanMacPath(file)} "${description}"`, copyToClipboard)
-    }
+    await copyCommandToClipboard(`${cleanMacPath(file)} "${description}"`, copyToClipboard)
+
     return testExitCode
   } catch (error) {
     logger.cli('Error executing single test:', error)
