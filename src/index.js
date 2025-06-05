@@ -12,6 +12,7 @@ const { logBox } = require('@davidwells/box-logger')
 const nicePath = require('./utils/nice-path')
 const chalk = require('./utils/chalk')
 const { createEditorLink } = require('./utils/links')
+const isFileEsm = require('is-file-esm')
 
 const FUSE_THRESHOLD = 0.3
 
@@ -384,7 +385,7 @@ Examples:
     const runHijack = emptyFlags && (args.length === 1 && (args[0] === 'run' || args[0] === 'r'))
     const { testPath, testDescription } = parseCliArguments(args)
     const testFiles = getTestFilesOrExit(testPath) // testPath can be undefined for all files
-    const allRunnableTests = findTestsInFiles(testFiles).filter((test, index, self) =>
+    const allRunnableTests = (await findTestsInFiles(testFiles)).filter((test, index, self) =>
       index === self.findIndex((t) => t.file === test.file && t.description === test.description)
     )
     // console.log('allRunnableTests', allRunnableTests)
@@ -658,54 +659,12 @@ function betterFuzzySort(searchTerm) {
   }
 }
 
-function findTestsInFiles(testFiles) {
-  return testFiles.map(file => {
+async function findTestsInFiles(testFiles) {
+  const results = await Promise.all(testFiles.map(async file => {
     const content = readTestFile(file)
+    const isESM = await isFileEsm(file)
+    //console.log('isESM', isESM)
     const lines = content.split('\n')
-    let isESM = false
-    let inSingleQuote = false
-    let inDoubleQuote = false
-    let inBacktick = false
-    let backtickCount = 0
-    
-    for (const line of lines) {
-      // Count backticks in the line
-      const backticksInLine = (line.match(/`/g) || []).length
-      backtickCount += backticksInLine
-      
-      // If we have an odd number of backticks, we're in a multiline string
-      inBacktick = backtickCount % 2 === 1
-      
-      // Skip if we're inside any type of quote
-      if (inSingleQuote || inDoubleQuote || inBacktick) {
-        // Only update single/double quote state if we're not in a backtick string
-        if (!inBacktick) {
-          // Count quotes in the line
-          const singleQuotes = (line.match(/'/g) || []).length
-          const doubleQuotes = (line.match(/"/g) || []).length
-          
-          // Update quote state
-          if (singleQuotes % 2 === 1) inSingleQuote = !inSingleQuote
-          if (doubleQuotes % 2 === 1) inDoubleQuote = !inDoubleQuote
-        }
-        continue
-      }
-      
-      // Check for import/export statements when not in quotes
-      if (/(?:^|\n)\s*(?:import|export)\s/m.test(line)) {
-        isESM = true
-        break
-      }
-      
-      // Update quote state for next line if not in backtick
-      if (!inBacktick) {
-        const singleQuotes = (line.match(/'/g) || []).length
-        const doubleQuotes = (line.match(/"/g) || []).length
-        inSingleQuote = singleQuotes % 2 === 1
-        inDoubleQuote = doubleQuotes % 2 === 1
-      }
-    }
-    
     const testMatches = []
     
     lines.forEach((line, lineNumber) => {
@@ -725,12 +684,14 @@ function findTestsInFiles(testFiles) {
           quoteType = "`"
         }
         const description = innerMatch[1]
-        testMatches.push({ file, description, quoteType, isESM, lineNumber: lineNumber + 1 })
+        testMatches.push({ file, description, quoteType, isESM: isESM.esm, lineNumber: lineNumber + 1 })
       })
     })
     
     return testMatches
-  }).flat()
+  }))
+  
+  return results.flat()
 }
 
 function findTestsInFilesOtherFrameworks(testFiles) {
