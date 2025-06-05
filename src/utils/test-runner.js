@@ -1,6 +1,7 @@
 const { spawn } = require('child_process')
 const fs = require('fs')
-const { logLine } = require('@davidwells/box-logger')
+const { logLine, logHeader } = require('@davidwells/box-logger')
+const { createEditorLink } = require('./links')
 const logger = require('./logger')
 const nicePath = require('./nice-path')
 
@@ -18,8 +19,12 @@ const executeTest = (testFile, opts = {}) => {
     }
 
     if (bestMatch.description) {
-      logLine(`🏃  Running test: "${bestMatch.description}" in ${nicePath(bestMatch.file)}`)
+      const openLinkTiny = createEditorLink(bestMatch.file, bestMatch.lineNumber, 0, `Edit`)
+      const openLink = createEditorLink(bestMatch.file, bestMatch.lineNumber, 0, `Open "${bestMatch.description}" test in editor`)
+      logLine(`🏃  Running test: "${bestMatch.description}" in ${nicePath(bestMatch.file)}:${bestMatch.lineNumber} ${openLinkTiny}`, { minWidth: '100%', maxWidth: '100%', padding: 0 })
       console.log()
+      // console.log(openLink)
+      // console.log() 
     }
     const process = spawn('node', [testFile], {
       stdio: 'inherit'

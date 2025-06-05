@@ -8,12 +8,10 @@ const logger = require('./utils/logger')
 const { findTestFiles, readTestFile, modifyTestFile, createTempFile } = require('./utils/test-processor')
 const { executeTest } = require('./utils/test-runner')
 const { cleanupTempFile } = require('./utils/cleanup')
+const { logBox } = require('@davidwells/box-logger')
 const nicePath = require('./utils/nice-path')
-const safeChalk = require('safe-chalk')
-
-// If --json flag disable chalk colors
-const DISABLE_COLORS = process.env.NO_COLORS
-const chalk = safeChalk(DISABLE_COLORS)
+const chalk = require('./utils/chalk')
+const { createEditorLink } = require('./utils/links')
 
 const FUSE_THRESHOLD = 0.3
 
@@ -156,6 +154,10 @@ function formatTestDescription(description, searchTerm) {
   return highlightMatch(description, searchTerm, chalkColor)
 }
 
+function chalkGray(text) {
+  return chalk.hex('#888888')(text)
+}
+
 function formatTestWrapper(description, searchTerm, quoteType) {
   const useHex = true
   const color = 'gray'
@@ -165,16 +167,18 @@ function formatTestWrapper(description, searchTerm, quoteType) {
 }
 
 // --- Core Test Execution and Selection Logic ---
-
+const COLUMN_WIDTH = 12
 const formatTestOutput = (testDescriptions, searchTerm = null) => {
   if (!testDescriptions || testDescriptions.length === 0) return ''
   const maxPathLength = Math.max(...testDescriptions.map(({ file }) => nicePath(file).length))
-  const paddingLength = maxPathLength + 5 // Add 5 for the " ◦ " separator
+  const paddingLength = maxPathLength + COLUMN_WIDTH // Add 5 for the " ◦ " separator
 
   return testDescriptions
-    .map(({ file, description, quoteType }) => {
-      const paddedPath = nicePath(file).padEnd(paddingLength)
-      return `   - ${paddedPath}${formatTestWrapper(description, searchTerm, quoteType)}`
+    .map(({ file, description, quoteType, lineNumber }) => {
+      const displayPath = `${nicePath(file)}:${lineNumber}`
+      const editorLink = createEditorLink(file, lineNumber, 0, 'Open')
+      const paddedPath = displayPath.padEnd(paddingLength)
+      return `  ${editorLink} - ${paddedPath}${formatTestWrapper(description, searchTerm, quoteType)}`
     })
     .join('\n')
 }
@@ -186,19 +190,27 @@ const listAndSelectTests = async ({
   testDescription, // The search term, if any
   listOnly, // Renamed from listIsEnabled
   totalTestCounts = {}, // New parameter for total test counts per file
+  cb,
 }) => {
   // console.log('Debug - listAndSelectTests received totalTestCounts:', totalTestCounts)
   const itemsToList = fuzzyResults ? fuzzyResults.map((result) => result.item) : allTestItems
 
   console.log(
-    `\n🔎 Found ${itemsToList.length} tests ${fuzzyResults ? `matching "${testDescription}"` : ''} in ${
+    `\n🔎 Found ${itemsToList.length} tests${fuzzyResults ? ` matching "${testDescription}"` : ' '}in ${
       testFiles.length
     } test files:`,
   )
+  console.log()
   console.log(formatTestOutput(itemsToList, testDescription))
   console.log()
 
+  // TODO make custom electron app for this protocol to work?
+  //console.log(`\x1b]8;;clipboard:${encodeURIComponent('lol')}\x1b\\Click to copy\x1b]8;;\x1b\\`)
+
   if (listOnly) {
+    if (cb) {
+      cb({ itemsToList, testFiles, testDescription, listOnly, totalTestCounts })
+    }
     process.exit(0)
   }
 
@@ -290,7 +302,7 @@ async function runSingleTest(testInfo, originalSearchTerm = null, copyToClipboar
 
     return testExitCode
   } catch (error) {
-    logger.cli('Error executing single test:', error)
+    console.log('Error executing single test:', error)
     cleanupTempFile(tempFile)
     return 1
   }
@@ -367,6 +379,7 @@ Examples:
     const runAllMatchingFlag = options.all || options.a || options.run || options.r || options.force || options.f
     const copyToClipboard = options.copy || options.c
     const listHijack = emptyFlags && (args.length === 1 && (args[0] === 'list' || args[0] === 'ls'))
+    const runHijack = emptyFlags && (args.length === 1 && (args[0] === 'run' || args[0] === 'r'))
     const { testPath, testDescription } = parseCliArguments(args)
     const testFiles = getTestFilesOrExit(testPath) // testPath can be undefined for all files
     const allRunnableTests = findTestsInFiles(testFiles).filter((test, index, self) =>
@@ -388,19 +401,28 @@ Examples:
 
     // If no args provided, run all test files
     if (!args || args.length === 0 || listHijack) {
-      if (listOnly || listHijack) {
-        await listAndSelectTests({ 
-          allTestItems: allRunnableTests, 
-          testFiles, 
-          listOnly: true,
-          allFlag: runAllMatchingFlag,
-          totalTestCounts
-        })
-        // listAndSelectTests will exit if listOnly is true
-      }
+      await listAndSelectTests({ 
+        allTestItems: allRunnableTests, 
+        testFiles, 
+        listOnly: true,
+        allFlag: runAllMatchingFlag,
+        totalTestCounts,
+        cb: ({ itemsToList, testFiles, testDescription, listOnly, totalTestCounts }) => {
+          logBox.info({
+            title: 'Tests Found',
+            text: `${itemsToList.length} tests${testDescription ? ` matching "${testDescription}"` : ' '}in ${testFiles.length} test files`,
+            borderStyle: 'rounded',
+            borderWidth: 1,
+            padding: 1,
+            margin: 1,
+            minWidth: 70,
+          })
+        }
+      })
+    }
 
+    if (runHijack) {
       console.log(`Running all ${allRunnableTests.length} tests in ${process.cwd()}\n`)
-
       const exitCode = await runAllTestsInFiles(testFiles, 'all tests', totalTestCounts)
       process.exit(exitCode)
     }
@@ -638,20 +660,31 @@ function findTestsInFiles(testFiles) {
   return testFiles.map(file => {
     const content = readTestFile(file)
     const isESM = /^(import|export)\s/m.test(content)
-    const testMatches = content.match(/[^'`"]test\([`'\"]([^`'\"]+)[`'\"]/g) || []
-    return testMatches.map(match => {
-      const innerMatch = match.match(/[^'`"]test\([`'\"]([^`'\"]+)[`'\"]/)
-      let quoteType = "'"
-      if (innerMatch[0].match(/\(\"/)) {
-        quoteType = '"'
-      } else if (innerMatch[0].match(/\(\'/)) {
-        quoteType = "'"
-      } else if (innerMatch[0].match(/\(\`/)) {
-        quoteType = "`"
+    const lines = content.split('\n')
+    const testMatches = []
+    
+    lines.forEach((line, lineNumber) => {
+      // Match test() with any quote type, but ensure we don't match inside strings
+      const matches = line.match(/test\s*\(\s*[`'\"]([^`'\"]+)[`'\"]/g) || []
+      if (matches.length > 0) {
+        // console.log('Found matches in line', lineNumber + 1, ':', matches)
       }
-      const description = innerMatch[1]
-      return { file, description, quoteType, isESM }
+      matches.forEach(match => {
+        const innerMatch = match.match(/test\s*\(\s*[`'\"]([^`'\"]+)[`'\"]/)
+        let quoteType = "'"
+        if (innerMatch[0].match(/\(\"/)) {
+          quoteType = '"'
+        } else if (innerMatch[0].match(/\(\'/)) {
+          quoteType = "'"
+        } else if (innerMatch[0].match(/\(\`/)) {
+          quoteType = "`"
+        }
+        const description = innerMatch[1]
+        testMatches.push({ file, description, quoteType, isESM, lineNumber: lineNumber + 1 })
+      })
     })
+    
+    return testMatches
   }).flat()
 }
 
