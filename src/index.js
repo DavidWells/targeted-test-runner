@@ -196,7 +196,7 @@ const listAndSelectTests = async ({
   const itemsToList = fuzzyResults ? fuzzyResults.map((result) => result.item) : allTestItems
 
   console.log(
-    `\n🔎 Found ${itemsToList.length} tests${fuzzyResults ? ` matching "${testDescription}"` : ' '}in ${
+    `\n🔎  Found ${itemsToList.length} tests${fuzzyResults ? ` matching "${testDescription}"` : ' '}in ${
       testFiles.length
     } test files:`,
   )
