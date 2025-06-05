@@ -11,6 +11,10 @@ function otherCodeTwo() {
   return 2
 }
 
+test('ksuid encoding', () => {
+  assert.equal(true, true)
+})
+
 test('test one', () => {
   assert.equal(otherCode(), 1)
 })

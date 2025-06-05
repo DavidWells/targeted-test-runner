@@ -287,7 +287,7 @@ async function runSingleTest(testInfo, originalSearchTerm = null, copyToClipboar
     cleanupTempFile(tempFile)
 
     if (copyToClipboard) {
-      await copyCommandToClipboard(`${cleanMacPath(file)} "${description}"`)
+      await copyCommandToClipboard(`${cleanMacPath(file)} "${description}"`, copyToClipboard)
     }
     return testExitCode
   } catch (error) {
@@ -297,13 +297,15 @@ async function runSingleTest(testInfo, originalSearchTerm = null, copyToClipboar
   }
 }
 
-async function copyCommandToClipboard(commandValue) {
+async function copyCommandToClipboard(commandValue, shouldCopy = false) {
   const isLocalDev = (process.argv[1] || '').includes('targeted-test-runner/src')
   const cmdToCopy = isLocalDev ? 'node src/index.js' : 'tt'
   const command = `${cmdToCopy} ${commandValue}`
   try {
-    const clipboardy = await import('clipboardy')
-    await clipboardy.default.write(command)
+    if (shouldCopy) {
+      const clipboardy = await import('clipboardy')
+      await clipboardy.default.write(command)
+    }
     console.log('Run tests again with CLI command:')
     console.log(`${command}`)
     console.log()
@@ -328,6 +330,7 @@ program
   .option('-f, --force', 'Alias for --all: Run all matching tests')
   .option('-l, --list', 'List all test descriptions found')
   .option('--ls', 'List all test descriptions found (alias for --list)')
+  .option('-c, --copy', 'Copy the command to clipboard')
   .argument('[args...]', 'Test description or [file/directory] and description')
   .addHelpText('after', `
 Examples:
@@ -354,12 +357,16 @@ Examples:
 
   # Run tests in a directory matching a description
   $ tt src/tests/ "login"
+
+  # Run a test and copy the command to clipboard
+  $ tt "login" --copy
 `)
   .action(async (args, options) => {
     logger.cli('Initializing CLI with version 1.0.0')
     const emptyFlags = Object.keys(options).length === 0
     const listOnly = options.list || options.ls
     const runAllMatchingFlag = options.all || options.a || options.run || options.r || options.force || options.f
+    const copyToClipboard = options.copy || options.c
     const listHijack = emptyFlags && (args.length === 1 && (args[0] === 'list' || args[0] === 'ls'))
     const { testPath, testDescription } = parseCliArguments(args)
     const testFiles = getTestFilesOrExit(testPath) // testPath can be undefined for all files
@@ -464,7 +471,7 @@ Examples:
         allFlag: runAllMatchingFlag,
         totalTestCounts
       })
-      return handleSelectionResult(selection, allRunnableTests, testFiles, null, runAllMatchingFlag)
+      return handleSelectionResult(selection, allRunnableTests, testFiles, null, runAllMatchingFlag, copyToClipboard)
     }
 
     // We have a testDescription, proceed with fuzzy search
@@ -474,6 +481,32 @@ Examples:
       console.log(`No tests found matching "${testDescription}".`)
       console.log(`Run "tt --list" to see all tests in the current directory.`)
       process.exit(0)
+    }
+
+    // Check for exact matches
+    const exactMatches = fuzzyResults.filter(result => 
+      result.item.description.toLowerCase() === testDescription.toLowerCase()
+    )
+
+    if (exactMatches.length === 1 && !runAllMatchingFlag) {
+      // Check if any other fuzzy results start with the exact match
+      const hasPrefixMatches = fuzzyResults.some(result => 
+        !exactMatches.includes(result) && 
+        result.item.description.toLowerCase().startsWith(exactMatches[0].item.description.toLowerCase())
+      )
+
+      if (!hasPrefixMatches) {
+        // If we have exactly one exact match, no prefix matches, and not using --all flag, run it directly
+        logger.cli(
+          `Found exact match for "${testDescription}": "${exactMatches[0].item.description}" in ${nicePath(exactMatches[0].item.file)}`
+        )
+        if (fuzzyResults.length > 1) {
+          console.log(`Found ${fuzzyResults.length} tests fuzzy matching "${testDescription}".`)
+          console.log(`But using the exact match: "${exactMatches[0].item.description}" in ${nicePath(exactMatches[0].item.file)}\n`)
+        }
+        const exitCode = await runSingleTest(exactMatches[0].item, testDescription, copyToClipboard)
+        process.exit(exitCode)
+      }
     }
 
     if (listOnly) {
@@ -502,6 +535,7 @@ Examples:
         testFiles,
         testDescription,
         runAllMatchingFlag,
+        copyToClipboard,
       )
     }
 
@@ -510,7 +544,7 @@ Examples:
     let overallExitCode = 0
 
     if (testsToExecute.length === 1) {
-      overallExitCode = await runSingleTest(testsToExecute[0], testDescription, true)
+      overallExitCode = await runSingleTest(testsToExecute[0], testDescription, copyToClipboard)
     } else {
       // Multiple tests due to --all flag
       logger.cli(`Running all ${testsToExecute.length} tests matching "${testDescription}":`)
@@ -521,7 +555,7 @@ Examples:
       if (testsToExecute.length > 0) {
         const niceDir = nicePath(testPath)
         const niceDirRender = (niceDir) ? `${niceDir} ` : ''
-        await copyCommandToClipboard(`${niceDirRender}"${testDescription}" --all`)
+        await copyCommandToClipboard(`${niceDirRender}"${testDescription}" --all`, copyToClipboard)
       }
     }
     process.exit(overallExitCode)
@@ -537,6 +571,7 @@ async function handleSelectionResult(
   allFoundTestFiles, // All files originally found in scope
   originalSearchTerm, // The description user typed, if any
   runAllMatchingFlag,
+  copyToClipboard,
 ) {
   // The --all flag state
   if (selectedOption.cancel) {
@@ -551,11 +586,11 @@ async function handleSelectionResult(
     logger.cli(`Running all ${candidateTests.length} tests matching "${selectedOption.testDescription}":`)
     for (const testInfo of candidateTests) {
       // candidateTests here are the fuzzyResults.map(r => r.item)
-      const testExitCode = await runSingleTest(testInfo, selectedOption.testDescription)
+      const testExitCode = await runSingleTest(testInfo, selectedOption.testDescription, false)
       if (testExitCode !== 0) exitCode = testExitCode
     }
     if (candidateTests.length > 0) {
-      await copyCommandToClipboard(`"${selectedOption.testDescription}" --all`)
+      await copyCommandToClipboard(`"${selectedOption.testDescription}" --all`, copyToClipboard)
     }
   } else if (selectedOption.runAllFound) {
     // User chose "Run all found tests" (when no initial description)
@@ -565,10 +600,10 @@ async function handleSelectionResult(
     logger.cli(`Running all tests in: ${nicePath(selectedOption.file)}`)
     exitCode = await executeTest(selectedOption.file)
     // Potentially copy command: tt path/to/file
-    await copyCommandToClipboard(cleanMacPath(selectedOption.file))
+    await copyCommandToClipboard(cleanMacPath(selectedOption.file), copyToClipboard)
   } else if (selectedOption.isSingleTest) {
     // User picked a specific test
-    exitCode = await runSingleTest(selectedOption, originalSearchTerm, true)
+    exitCode = await runSingleTest(selectedOption, originalSearchTerm, copyToClipboard)
   } else {
     logger.cli('Unknown selection. Aborting.')
     exitCode = 1
