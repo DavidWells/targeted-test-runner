@@ -57,6 +57,7 @@ const executeTest = async (testFile, opts = {}) => {
     // First attempt with original file
     return runTest(testFile)
   } catch (error) {
+    console.log('error', error)
     // Check if it's an ESM-related error
     if (error.message && error.message.includes('require is not defined in ES module')) {
       logger.runner('Detected ESM module, retrying with .mjs extension')
