@@ -271,12 +271,12 @@ const listAndSelectTests = async ({
 }
 
 async function runSingleTest(testInfo, originalSearchTerm = null, copyToClipboard = false) {
-  const { file, description } = testInfo
+  const { file, description, isESM } = testInfo
   logger.cli(`Running test: "${description}" in ${nicePath(file)}`)
 
   const content = readTestFile(file)
   const modified = modifyTestFile(content, description)
-  const tempFile = createTempFile(modified, file)
+  const tempFile = createTempFile(modified, file, isESM)
   logger.cli(`Created temporary file: ${tempFile}`)
 
   try {
@@ -576,8 +576,8 @@ function betterFuzzySort(searchTerm) {
 function findTestsInFiles(testFiles) {
   return testFiles.map(file => {
     const content = readTestFile(file)
+    const isESM = /^(import|export)\s/m.test(content)
     const testMatches = content.match(/[^'`"]test\([`'\"]([^`'\"]+)[`'\"]/g) || []
-    // console.log('testMatches', testMatches)
     return testMatches.map(match => {
       const innerMatch = match.match(/[^'`"]test\([`'\"]([^`'\"]+)[`'\"]/)
       let quoteType = "'"
@@ -589,7 +589,7 @@ function findTestsInFiles(testFiles) {
         quoteType = "`"
       }
       const description = innerMatch[1]
-      return { file, description, quoteType }
+      return { file, description, quoteType, isESM }
     })
   }).flat()
 }

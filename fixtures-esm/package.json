@@ -1,0 +1,14 @@
+{
+  "name": "esm-thingies",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "uvu tests"
+  },
+  "keywords": [],
+  "author": "David Wells",
+  "license": "ISC",
+  "dependencies": {
+    "uvu": "^0.5.6"
+  }
+}

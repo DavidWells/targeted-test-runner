@@ -64,11 +64,12 @@ const modifyTestFile = (content, testDescription) => {
   return modifiedLines.join('\n')
 }
 
-const createTempFile = (content, originalPath) => {
-  const tempPath = `${originalPath}.temp`
-  logger.processor('Creating temporary file:', tempPath)
-  fs.writeFileSync(tempPath, content)
-  return tempPath
+function createTempFile(content, originalFile, isESM = false) {
+  const dir = path.dirname(originalFile)
+  const ext = path.extname(originalFile)
+  const tempFile = path.join(dir, `${path.basename(originalFile, ext)}.temp${isESM ? ext : ''}`)
+  fs.writeFileSync(tempFile, content)
+  return tempFile
 }
 
 module.exports = {
