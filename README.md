@@ -5,10 +5,12 @@ A CLI tool for running specific tests by description without manually modifying 
 ## Installation
 
 ```bash
-npm install -g targeted-test-runner
+npm install targeted-test-runner -g
 ```
 
 ## Usage
+
+`tt --help`
 
 ### Basic Usage
 
@@ -21,7 +23,7 @@ tt
 Run a specific test by its description:
 
 ```bash
-tt 'test description'
+tt "should handle user login"
 ```
 
 The tool will:
@@ -31,6 +33,34 @@ The tool will:
 4. Run the test(s)
 5. Clean up any temporary files
 
+### Examples
+
+```bash
+# Run all tests in the current directory
+tt
+
+# List all available tests
+tt --list
+
+# Run a specific test by description
+tt "should handle user login"
+
+# Run all tests matching a description
+tt "login" --all
+
+# Run all tests in a specific file
+tt src/tests/auth.test.js
+
+# Run tests in a specific file matching a description
+tt src/tests/auth.test.js "login"
+
+# Run all tests in a directory
+tt src/tests/
+
+# Run tests in a directory matching a description
+tt src/tests/ "login"
+```
+
 ### Advanced Usage
 
 #### Run Tests from a Specific File
@@ -38,7 +68,7 @@ The tool will:
 Run tests from a specific file by providing the file path first:
 
 ```bash
-tt ./path/to/test.js 'test description'
+tt ./path/to/test.js "test description"
 ```
 
 #### Run All Matching Tests
@@ -47,15 +77,15 @@ Use the `-a` or `--all` flag to run all matching tests instead of just the best 
 
 ```bash
 # Run all tests matching the description
-tt -a 'test description'
+tt "test description" -a 
 
 # Run all tests from a specific file matching the description
-tt ./path/to/test.js -a 'test description'
+tt ./path/to/test.js "test description" -a 
 ```
 
 #### Example
 
-Given a test file:
+Given a test file `test-file.test.js`
 
 ```js
 // test-file.test.js
@@ -73,11 +103,13 @@ test('test two', () => {
 test.run()
 ```
 
-You can target specific tests.
+You can target specific tests:
 
-`tt test-file.test.js 'two'`
+```bash
+tt test-file.test.js "two"
+```
 
-This will automagically create a temp file with `test.only` applied to our matches
+This will automagically create a temp file with `test.only` applied to our matches:
 
 ```js
 // test-file.test.js
@@ -105,7 +137,6 @@ tt
 tt 'foo'
 
 # Run all tests containing 'api requests'
-tt 'api requests' -a
 tt 'api requests' --all
 
 # Run tests only from a specific file
@@ -118,7 +149,6 @@ tt ./path/to/dir
 tt ./path/to/dir 'xyz'
 
 # Run all matching tests from a specific file
-tt ./path/to/test.js 'test' -a 
 tt ./path/to/test.js 'test' --all
 ```
 

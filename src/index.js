@@ -329,6 +329,32 @@ program
   .option('-l, --list', 'List all test descriptions found')
   .option('--ls', 'List all test descriptions found (alias for --list)')
   .argument('[args...]', 'Test description or [file/directory] and description')
+  .addHelpText('after', `
+Examples:
+  # Run all tests in the current directory
+  $ tt
+
+  # List all available tests
+  $ tt --list
+
+  # Run a specific test by description
+  $ tt "should handle user login"
+
+  # Run all tests matching a description
+  $ tt "login" --all
+
+  # Run all tests in a specific file
+  $ tt src/tests/auth.test.js
+
+  # Run tests in a specific file matching a description
+  $ tt src/tests/auth.test.js "login"
+
+  # Run all tests in a directory
+  $ tt src/tests/
+
+  # Run tests in a directory matching a description
+  $ tt src/tests/ "login"
+`)
   .action(async (args, options) => {
     logger.cli('Initializing CLI with version 1.0.0')
     const emptyFlags = Object.keys(options).length === 0
