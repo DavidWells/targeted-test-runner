@@ -72,10 +72,21 @@ test('modifyTestFile adds .only to matching test with backticks', () => {
   assert.is(modified.includes('test two'), true)
 })
 
-test('createTempFile creates temporary file', () => {
+test('createTempFile creates temporary file', async () => {
   const testPath = path.join(__dirname, '../../fixtures/example-quotes-single.test.js')
-  const tempPath = createTempFile('test content', testPath)
+  const tempPath = await createTempFile('test content', testPath)
+  console.log('tempPath JS', tempPath)
   assert.is(fs.existsSync(tempPath), true)
+  assert.is(tempPath.endsWith('.temp'), true)
+  fs.unlinkSync(tempPath)
+})
+
+test('createTempFile creates temporary ESM file', async () => {
+  const testPath = path.join(__dirname, '../../fixtures-esm/basic.test.js')
+  const tempPath = await createTempFile('test content', testPath)
+  console.log('tempPath MJS', tempPath)
+  assert.is(fs.existsSync(tempPath), true)
+  assert.is(tempPath.endsWith('.mjs'), true)
   fs.unlinkSync(tempPath)
 })
 

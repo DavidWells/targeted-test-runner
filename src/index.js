@@ -248,7 +248,7 @@ const listAndSelectTests = async ({
 
   choices.push(
     ...itemsToList.map((item) => {
-      const { file, description, quoteType, lineNumber, isESM } = item
+      const { file, description, quoteType, lineNumber } = item
       let highlightedDescription = description
       if (testDescription) {
         const regex = new RegExp(`(${testDescription})`, 'gi')
@@ -286,13 +286,12 @@ const listAndSelectTests = async ({
 }
 
 async function runSingleTest(testInfo, originalSearchTerm = null, copyToClipboard = false) {
-  const { file, description, isESM } = testInfo
-  // console.log('testInfo', testInfo)
+  const { file, description } = testInfo
   logger.cli(`Running test: "${description}" in ${nicePath(file)}`)
 
   const content = readTestFile(file)
   const modified = modifyTestFile(content, description)
-  const tempFile = createTempFile(modified, file, isESM)
+  const tempFile = await createTempFile(modified, file)
   logger.cli(`Created temporary file: ${tempFile}`)
 
   try {

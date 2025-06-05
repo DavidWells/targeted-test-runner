@@ -70,7 +70,7 @@ test.after(() => {
   fs.rmSync(fixturesDir, { recursive: true, force: true })
 })
 
-test('findTestsInFiles - detects ESM correctly', async () => {
+test('findTestsInFiles - finds all tests', async () => {
   const testFiles = [
     path.join(fixturesDir, 'commonjs.test.js'),
     path.join(fixturesDir, 'esm.test.js'),
@@ -79,14 +79,6 @@ test('findTestsInFiles - detects ESM correctly', async () => {
   ]
 
   const results = await findTestsInFiles(testFiles)
-  console.log('results', results)
-  
-  // Check ESM detection
-  const esmResults = results.filter(r => r.isESM)
-  const nonEsmResults = results.filter(r => !r.isESM)
-  
-  assert.is(esmResults.length, 2, 'should detect 2 ESM files')
-  assert.is(nonEsmResults.length, 2, 'should detect 2 non-ESM files')
   
   // Check test detection
   assert.is(results.length, 4, 'should find all 4 tests')
@@ -99,7 +91,7 @@ test('findTestsInFiles - detects ESM correctly', async () => {
   assert.ok(descriptions.includes('false positive'), 'should find false positive test')
 })
 
-test('findTestsInFilesBasic - detects ESM correctly', () => {
+test('findTestsInFilesBasic - finds all tests', () => {
   const testFiles = [
     path.join(fixturesDir, 'commonjs.test.js'),
     path.join(fixturesDir, 'esm.test.js'),
@@ -108,13 +100,6 @@ test('findTestsInFilesBasic - detects ESM correctly', () => {
   ]
 
   const results = findTestsInFilesBasic(testFiles)
-  
-  // Check ESM detection
-  const esmResults = results.filter(r => r.isESM)
-  const nonEsmResults = results.filter(r => !r.isESM)
-  
-  assert.is(esmResults.length, 2, 'should detect 2 ESM files')
-  assert.is(nonEsmResults.length, 2, 'should detect 2 non-ESM files')
   
   // Check test detection
   assert.is(results.length, 4, 'should find all 4 tests')

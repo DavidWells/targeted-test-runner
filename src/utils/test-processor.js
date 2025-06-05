@@ -1,6 +1,7 @@
 const fs = require('fs')
 const path = require('path')
 const logger = require('./logger')
+const isFileEsm = require('is-file-esm')
 
 const findTestFiles = (dir = process.cwd()) => {
   logger.processor('Searching for test files in:', dir)
@@ -64,9 +65,92 @@ const modifyTestFile = (content, testDescription) => {
   return modifiedLines.join('\n')
 }
 
-function createTempFile(content, originalFile, isESM = false) {
+const HAS_IMPORT_EXPORT = /\b(?:import|export)\b/
+
+function checkContentForESM(content) {
+  /* Quick check if import or export word exist in the content */
+  if (!HAS_IMPORT_EXPORT.test(content)) {
+    return false
+  }
+
+  const lines = content.split('\n')
+  let inSingleQuote = false
+  let inDoubleQuote = false
+  let inBacktick = false
+  let backtickStack = 0
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    
+    // Count unescaped backticks in the line
+    const backticksInLine = (line.match(/(?<!\\)`/g) || []).length
+    
+    // Track nested backticks
+    if (backticksInLine > 0) {
+      // For each backtick in the line
+      for (let j = 0; j < backticksInLine; j++) {
+        if (!inBacktick) {
+          // Opening backtick
+          backtickStack++
+          inBacktick = true
+        } else {
+          // Closing backtick
+          backtickStack--
+          inBacktick = backtickStack > 0
+        }
+      }
+    }
+    
+    const inQuoteBlock = inSingleQuote || inDoubleQuote || inBacktick
+    
+    // Skip if we're inside any type of quote
+    if (inQuoteBlock) {
+      // Only update single/double quote state if we're not in a backtick string
+      if (!inBacktick) {
+        // Count unescaped quotes in the line
+        const singleQuotes = (line.match(/(?<!\\)'/g) || []).length
+        const doubleQuotes = (line.match(/(?<!\\)"/g) || []).length
+        
+        // Update quote state
+        if (singleQuotes % 2 === 1) inSingleQuote = !inSingleQuote
+        if (doubleQuotes % 2 === 1) inDoubleQuote = !inDoubleQuote
+      }
+      continue
+    }
+    
+    // Check for import/export statements at the start of a line (after whitespace)
+    if (line.startsWith('import ') || line.startsWith('export ')) {
+      // Only return true if we're not in any type of quote
+      if (!inSingleQuote && !inDoubleQuote && !inBacktick) {
+        return true
+      }
+    }
+    
+    // Update quote state for next line if not in backtick
+    if (!inBacktick) {
+      const singleQuotes = (line.match(/(?<!\\)'/g) || []).length
+      const doubleQuotes = (line.match(/(?<!\\)"/g) || []).length
+      inSingleQuote = singleQuotes % 2 === 1
+      inDoubleQuote = doubleQuotes % 2 === 1
+    }
+  }
+  
+  return false
+}
+
+async function createTempFile(content, originalFile) {
   const dir = path.dirname(originalFile)
   const ext = path.extname(originalFile)
+  
+  // Check if file is ESM
+  const fileData = await isFileEsm(originalFile)
+  let isESM = fileData.esm
+  
+  // If not detected as ESM by is-file-esm, check content
+  if (!isESM) {
+    isESM = checkContentForESM(content)
+  }
+  
   const tempFile = path.join(dir, `${path.basename(originalFile, ext)}.temp${isESM ? '.mjs' : ''}`)
   fs.writeFileSync(tempFile, content)
   return tempFile
