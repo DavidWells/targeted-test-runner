@@ -16,8 +16,9 @@ test('CLI handles no matches gracefully', () => {
     execSync('DEBUG=tt:* node src/index.js "nonexistent test"', { encoding: 'utf8' })
     assert.unreachable('Should have thrown error')
   } catch (error) {
+    // .log('error', error)
     assert.is(error.status, 1, 'should exit with status 1')
-    assert.is(error.stdout.includes('No matching tests found'), true, 'should show no matching tests found')
+    assert.is(error.stderr.includes('No tests found matching'), true, 'should show no matching tests found')
   }
 })
 
