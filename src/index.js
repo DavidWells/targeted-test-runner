@@ -9,6 +9,11 @@ const { findTestFiles, readTestFile, modifyTestFile, createTempFile } = require(
 const { executeTest } = require('./utils/test-runner')
 const { cleanupTempFile } = require('./utils/cleanup')
 const nicePath = require('./utils/nice-path')
+const safeChalk = require('safe-chalk')
+
+// If --json flag disable chalk colors
+const DISABLE_COLORS = process.env.NO_COLORS
+const chalk = safeChalk(DISABLE_COLORS)
 
 const FUSE_THRESHOLD = 0.3
 
@@ -97,17 +102,68 @@ function performFuzzySearch(tests, searchTerm) {
   return fuse.search(searchTerm)
 }
 
+function fuzzyHighlight(text, query, chalkColor = 'cyan') {
+  let result = ''
+  let queryIndex = 0
+  
+  for (let i = 0; i < text.length; i++) {
+    if (queryIndex < query.length && text[i].toLowerCase() === query[queryIndex].toLowerCase()) {
+      result += chalk[chalkColor](text[i])
+      queryIndex++
+    } else {
+      result += text[i]
+    }
+  }
+  
+  return result
+}
+
+function highlightMatch(text = '', query = '', chalkColor = 'cyan') {
+  if (!query) return text
+  
+  const index = text.toLowerCase().indexOf(query.toLowerCase())
+  if (index === -1) {
+    // Attempt fuzzy highlight if no exact match
+    return fuzzyHighlight(text, query, chalkColor)
+  }
+  
+  const before = text.slice(0, index)
+  const match = text.slice(index, index + query.length)
+  const after = text.slice(index + query.length)
+  
+  return `${before}${chalk[chalkColor](match)}${after}`
+}
+
+function formatTestDescription(description, searchTerm) {
+  if (!searchTerm) return description
+  const chalkColor = 'redBright'
+  const regex = new RegExp(`(${searchTerm})`, 'gi')
+
+  if (description.match(regex)) {
+    return description.replace(regex, (match) => chalk[chalkColor](match))
+  }
+  return highlightMatch(description, searchTerm, chalkColor)
+}
+
+function formatTestWrapper(description, searchTerm, quoteType) {
+  const useHex = true
+  const color = 'gray'
+  const wrapperColor = (useHex ? chalk.hex('#888888') : chalk[color]) 
+  const formattedDescription = formatTestDescription(description, searchTerm)
+  return `${wrapperColor(`test(${quoteType}`) + `${formattedDescription}` + wrapperColor(`${quoteType})`)}`
+}
+
 // --- Core Test Execution and Selection Logic ---
 
-const formatTestOutput = (testDescriptions) => {
+const formatTestOutput = (testDescriptions, searchTerm = null) => {
   if (!testDescriptions || testDescriptions.length === 0) return ''
   const maxPathLength = Math.max(...testDescriptions.map(({ file }) => nicePath(file).length))
   const paddingLength = maxPathLength + 5 // Add 5 for the " ◦ " separator
 
   return testDescriptions
-    .map(({ file, description }) => {
+    .map(({ file, description, quoteType }) => {
       const paddedPath = nicePath(file).padEnd(paddingLength)
-      return `   - ${paddedPath}"${description}"`
+      return `   - ${paddedPath}${formatTestWrapper(description, searchTerm, quoteType)}`
     })
     .join('\n')
 }
@@ -128,7 +184,7 @@ const listAndSelectTests = async ({
       testFiles.length
     } test files:`,
   )
-  console.log(formatTestOutput(itemsToList))
+  console.log(formatTestOutput(itemsToList, testDescription))
   console.log()
 
   if (listOnly) {
@@ -162,20 +218,24 @@ const listAndSelectTests = async ({
   console.log('Debug - totalTestCounts in choices:', totalTestCounts)
   /** */
   choices.push(
-    ...multiTestFiles.map((file) => {
-      // console.log(`Debug - count for ${file}:`, totalTestCounts[file])
-      return {
-        title: `▶ Run all ${totalTestCounts[file]} tests in file ${nicePath(file)}`,
-        value: { runAllInFile: true, file },
-      }
-    }),
+    ...multiTestFiles.map((file) => ({
+      title: `▶ Run all ${totalTestCounts[file]} tests in file ${nicePath(file)}`,
+      value: { runAllInFile: true, file },
+    })),
   )
 
   choices.push(
-    ...itemsToList.map(({ file, description }) => ({
-      title: `◉ Run test "${description}" in ${nicePath(file)}`,
-      value: { file, description, isSingleTest: true },
-    })),
+    ...itemsToList.map(({ file, description, quoteType }) => {
+      let highlightedDescription = description
+      if (testDescription) {
+        const regex = new RegExp(`(${testDescription})`, 'gi')
+        highlightedDescription = description.replace(regex, (match) => chalk.redBright(match))
+      }
+      return {
+        title: `◉ Run ${formatTestWrapper(description, testDescription, quoteType)} in ${nicePath(file)}`,
+        value: { file, description, isSingleTest: true },
+      }
+    }),
   )
 
   choices.push({ title: '✖ Cancel', value: { cancel: true } })
@@ -191,7 +251,7 @@ const listAndSelectTests = async ({
     })
 
     if (!response || !response.selectedOption || response.selectedOption.cancel) {
-      console.log('Selection cancelled.')
+      console.log('Test selection cancelled.')
       process.exit(0)
     }
     return response.selectedOption
@@ -268,6 +328,9 @@ program
     const allRunnableTests = findTestsInFiles(testFiles).filter((test, index, self) =>
       index === self.findIndex((t) => t.file === test.file && t.description === test.description)
     )
+
+    // console.log('allRunnableTests', allRunnableTests)
+    // process.exit(0)
 
     // const allRunnableTests = []
 
@@ -505,9 +568,19 @@ function findTestsInFiles(testFiles) {
   return testFiles.map(file => {
     const content = readTestFile(file)
     const testMatches = content.match(/[^'`"]test\([`'\"]([^`'\"]+)[`'\"]/g) || []
+    // console.log('testMatches', testMatches)
     return testMatches.map(match => {
-      const description = match.match(/[^'`"]test\([`'\"]([^`'\"]+)[`'\"]/)[1]
-      return { file, description }
+      const innerMatch = match.match(/[^'`"]test\([`'\"]([^`'\"]+)[`'\"]/)
+      let quoteType = "'"
+      if (innerMatch[0].match(/\(\"/)) {
+        quoteType = '"'
+      } else if (innerMatch[0].match(/\(\'/)) {
+        quoteType = "'"
+      } else if (innerMatch[0].match(/\(\`/)) {
+        quoteType = "`"
+      }
+      const description = innerMatch[1]
+      return { file, description, quoteType }
     })
   }).flat()
 }
