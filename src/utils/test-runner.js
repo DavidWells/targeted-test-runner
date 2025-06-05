@@ -6,13 +6,31 @@ const { createEditorLink } = require('./links')
 const logger = require('./logger')
 const nicePath = require('./nice-path')
 
-function runTest(fileToRun) {
+async function spawnProcess(fileToRun) {
   return new Promise((resolve, reject) => {
+    let stderrOutput = ''
     const process = spawn('node', [fileToRun], {
-      stdio: 'inherit'
+      stdio: ['inherit', 'inherit', 'pipe'] // Pipe stderr to capture it
+    })
+
+    // Log stdout
+    process.stdout?.on('data', (data) => {
+      // console.log('stdout:', data.toString())
+    })
+
+    // Capture stderr
+    process.stderr?.on('data', (data) => {
+      const output = data.toString()
+      stderrOutput += output
+      // console.log('stderr:', output)
     })
     
     process.on('close', (code) => {
+      // Check if we got an ESM error
+      if (stderrOutput.includes('require is not defined in ES module scope')) {
+        reject(new Error('ESM_ERROR'))
+        return
+      }
       logger.runner(`Test execution completed with status: ${code === 0 ? 'passed' : 'failed'}`)
       resolve(code)
     })
@@ -24,13 +42,46 @@ function runTest(fileToRun) {
   })
 }
 
+async function runTest(fileToRun) {
+  // First try with original file
+  try {
+    return await spawnProcess(fileToRun)
+  } catch (error) {
+    logger.runner('Initial run failed:', error.message)
+  
+    // If original file fails, try both extensions
+    const content = fs.readFileSync(fileToRun, 'utf8')
+    let tempFile
 
-async function createTempFileWithExtension (content, originalFile, extension) {
-  const dir = path.dirname(originalFile)
-  const ext = path.extname(originalFile)
-  const tempFile = path.join(dir, `${path.basename(originalFile, ext)}.temp${extension}`)
-  fs.writeFileSync(tempFile, content)
-  return tempFile
+    // Try as .js first
+    logger.runner('Trying as JS file')
+    tempFile = await createTempFileJSFile(content, fileToRun)
+    
+    try {
+      const result = await spawnProcess(tempFile)
+      // Clean up temp file
+      fs.unlinkSync(tempFile)
+      return result
+    } catch (jsError) {
+      // Clean up .js temp file
+      fs.unlinkSync(tempFile)
+      
+      // If .js fails, try as .mjs
+      logger.runner('JS attempt failed, trying as MJS')
+      tempFile = await createTempFileWithExtension(content, fileToRun, '.mjs')
+      
+      try {
+        const result = await spawnProcess(tempFile)
+        // Clean up temp file
+        fs.unlinkSync(tempFile)
+        return result
+      } catch (mjsError) {
+        // Clean up temp file even if retry fails
+        fs.unlinkSync(tempFile)
+        throw mjsError
+      }
+    }
+  }
 }
 
 const executeTest = async (testFile, opts = {}) => {
@@ -53,47 +104,23 @@ const executeTest = async (testFile, opts = {}) => {
     // console.log() 
   }
 
-  try {
-    // First attempt with original file
-    return runTest(testFile)
-  } catch (error) {
-    console.log('error', error)
-    // Check if it's an ESM-related error
-    if (error.message && error.message.includes('require is not defined in ES module')) {
-      logger.runner('Detected ESM module, retrying with .mjs extension')
-      
-      // Copy the original file content
-      const content = fs.readFileSync(testFile, 'utf8')
-      let tempFile = await createTempFileWithExtension(content, testFile, '')
-      
-      try {
-        // Try with .mjs first
-        const result = await runTest(tempFile)
-        // Clean up temp file
-        fs.unlinkSync(tempFile)
-        return result
-      } catch (mjsError) {
-        // Clean up .mjs temp file
-        fs.unlinkSync(tempFile)
-        
-        // If .mjs fails, try with regular .temp extension
-        logger.runner('MJS attempt failed, retrying with regular .temp extension')
-        tempFile = await createTempFileWithExtension(content, testFile, '.mjs')
-        
-        try {
-          const result = await runTest(tempFile)
-          // Clean up temp file
-          fs.unlinkSync(tempFile)
-          return result
-        } catch (tempError) {
-          // Clean up temp file even if retry fails
-          fs.unlinkSync(tempFile)
-          throw tempError
-        }
-      }
-    }
-    throw error
-  }
+  return runTest(testFile)
+}
+
+async function createTempFileJSFile (content, originalFile) {
+  const dir = path.dirname(originalFile)
+  const ext = path.extname(originalFile)
+  const tempFile = path.join(dir, `${path.basename(originalFile, ext).replace(/\.temp$/, '')}.temp`)
+  fs.writeFileSync(tempFile, content)
+  return tempFile
+}
+
+async function createTempFileWithExtension (content, originalFile, extension) {
+  const dir = path.dirname(originalFile)
+  const ext = path.extname(originalFile)
+  const tempFile = path.join(dir, `${path.basename(originalFile, ext)}.temp${extension}`)
+  fs.writeFileSync(tempFile, content)
+  return tempFile
 }
 
 module.exports = {

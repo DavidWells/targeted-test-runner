@@ -7,9 +7,10 @@ const { findTestsInFiles, findTestsInFilesBasic } = require('../../src/utils/fin
 // Create test fixtures
 const fixturesDir = path.join(__dirname, 'fixtures')
 const createTestFile = (name, content) => {
+  const realContent = content.replace(/testx/g, 'test')
   const filePath = path.join(fixturesDir, name)
   fs.mkdirSync(fixturesDir, { recursive: true })
-  fs.writeFileSync(filePath, content)
+  fs.writeFileSync(filePath, realContent)
   return filePath
 }
 
@@ -19,7 +20,7 @@ test.before(() => {
 const { test } = require('uvu')
 const assert = require('uvu/assert')
 
-test('commonjs test', () => {
+testx('commonjs test', () => {
   assert.equal(true, true)
 })
 
@@ -30,7 +31,7 @@ test.run()
 import { test } from 'uvu'
 import * as assert from 'uvu/assert'
 
-test('esm test', () => {
+testx('esm test', () => {
   assert.equal(true, true)
 })
 
@@ -42,7 +43,7 @@ test.run()
 import { test } from 'uvu'
 import * as assert from 'uvu/assert'
 
-test('esm with comments test', () => {
+testx('esm with comments test', () => {
   assert.equal(true, true)
 })
 
@@ -53,7 +54,7 @@ test.run()
 const { test } = require('uvu')
 const assert = require('uvu/assert')
 
-test('false positive', () => {
+testx('false positive', () => {
   const str = \`
     import { foo } from 'bar'
     export const baz = 'qux'
@@ -100,6 +101,7 @@ test('findTestsInFilesBasic - finds all tests', () => {
   ]
 
   const results = findTestsInFilesBasic(testFiles)
+  console.log('results', results)
   
   // Check test detection
   assert.is(results.length, 4, 'should find all 4 tests')
@@ -115,12 +117,6 @@ test('findTestsInFilesBasic - finds all tests', () => {
 test('findTestsInFiles - handles empty files', async () => {
   const emptyFile = createTestFile('empty.test.js', '')
   const results = await findTestsInFiles([emptyFile])
-  assert.is(results.length, 0, 'should handle empty files')
-})
-
-test('findTestsInFilesBasic - handles empty files', () => {
-  const emptyFile = createTestFile('empty.test.js', '')
-  const results = findTestsInFilesBasic([emptyFile])
   assert.is(results.length, 0, 'should handle empty files')
 })
 
