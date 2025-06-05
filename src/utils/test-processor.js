@@ -145,10 +145,12 @@ async function createTempFile(content, originalFile) {
   // Check if file is ESM
   const fileData = await isFileEsm(originalFile)
   let isESM = fileData.esm
+  // console.log('isFileEsm', isESM, originalFile)
   
   // If not detected as ESM by is-file-esm, check content
   if (!isESM) {
     isESM = checkContentForESM(content)
+    // console.log('checkContentForESM', isESM, originalFile)
   }
   
   const tempFile = path.join(dir, `${path.basename(originalFile, ext)}.temp${isESM ? '.mjs' : ''}`)

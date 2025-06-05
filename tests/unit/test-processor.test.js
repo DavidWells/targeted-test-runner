@@ -90,4 +90,13 @@ test('createTempFile creates temporary ESM file', async () => {
   fs.unlinkSync(tempPath)
 })
 
+test('Try large file', async () => {
+  const testPath = path.join(__dirname, '../../experiments/oparser.test.js')
+  const tempPath = await createTempFile('test content', testPath)
+  console.log('oparser temp', tempPath)
+  assert.is(fs.existsSync(tempPath), true)
+  assert.is(tempPath.endsWith('.temp'), true)
+  fs.unlinkSync(tempPath)
+})
+
 test.run() 
