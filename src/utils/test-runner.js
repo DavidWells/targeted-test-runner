@@ -19,9 +19,9 @@ const executeTest = (testFile, opts = {}) => {
     }
 
     if (bestMatch.description) {
-      const openLinkTiny = createEditorLink(bestMatch.file, bestMatch.lineNumber, 0, `Edit`)
+      const openLinkTiny = createEditorLink(bestMatch.file, bestMatch.lineNumber, 0, `Open test`)
       const openLink = createEditorLink(bestMatch.file, bestMatch.lineNumber, 0, `Open "${bestMatch.description}" test in editor`)
-      logLine(`🏃  Running test: "${bestMatch.description}" in ${nicePath(bestMatch.file)}:${bestMatch.lineNumber} ${openLinkTiny}`, { minWidth: '100%', maxWidth: '100%', padding: 0 })
+      logLine(`🏃  Running test: "${bestMatch.description}" from ${nicePath(bestMatch.file)}:${bestMatch.lineNumber} - ${openLinkTiny}`, { minWidth: '100%', maxWidth: '100%', padding: 0 })
       console.log()
       // console.log(openLink)
       // console.log() 

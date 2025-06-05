@@ -245,7 +245,7 @@ const listAndSelectTests = async ({
   )
 
   choices.push(
-    ...itemsToList.map(({ file, description, quoteType }) => {
+    ...itemsToList.map(({ file, description, quoteType, lineNumber }) => {
       let highlightedDescription = description
       if (testDescription) {
         const regex = new RegExp(`(${testDescription})`, 'gi')
@@ -253,7 +253,7 @@ const listAndSelectTests = async ({
       }
       return {
         title: `◉ Run ${formatTestWrapper(description, testDescription, quoteType)} in ${nicePath(file)}`,
-        value: { file, description, isSingleTest: true },
+        value: { file, description, isSingleTest: true, lineNumber },
       }
     }),
   )
@@ -284,6 +284,7 @@ const listAndSelectTests = async ({
 
 async function runSingleTest(testInfo, originalSearchTerm = null, copyToClipboard = false) {
   const { file, description, isESM } = testInfo
+  // console.log('testInfo', testInfo)
   logger.cli(`Running test: "${description}" in ${nicePath(file)}`)
 
   const content = readTestFile(file)
