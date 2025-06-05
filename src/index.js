@@ -303,10 +303,10 @@ async function copyCommandToClipboard(commandValue) {
   try {
     const clipboardy = await import('clipboardy')
     await clipboardy.default.write(command)
-    console.log('\n📋 Command copied to clipboard:')
+    console.log('📋 Command copied to clipboard:')
     console.log(command)
   } catch (err) {
-    logger.cli('\n📋 Failed to copy command to clipboard. Manual copy:')
+    logger.cli('📋 Failed to copy command to clipboard. Manual copy:')
     console.log(command)
     // logger.error('Clipboardy error:', err); // Optional: for debugging
   }
@@ -322,26 +322,26 @@ program
   .version('1.0.0')
   .description('Run targeted tests by description')
   .option('-a, --all', 'Run all matching tests instead of just the best match')
+  .option('-r, --run', 'Alias for --all: Run all matching tests')
+  .option('-f, --force', 'Alias for --all: Run all matching tests')
   .option('-l, --list', 'List all test descriptions found')
   .option('--ls', 'List all test descriptions found (alias for --list)')
   .argument('[args...]', 'Test description or [file/directory] and description')
   .action(async (args, options) => {
     logger.cli('Initializing CLI with version 1.0.0')
-
+    const emptyFlags = Object.keys(options).length === 0
     const listOnly = options.list || options.ls
-    const runAllMatchingFlag = options.all || options.a
-
+    const runAllMatchingFlag = options.all || options.a || options.run || options.r || options.force || options.f
+    const listHijack = emptyFlags && (args.length === 1 && (args[0] === 'list' || args[0] === 'ls'))
     const { testPath, testDescription } = parseCliArguments(args)
     const testFiles = getTestFilesOrExit(testPath) // testPath can be undefined for all files
     const allRunnableTests = findTestsInFiles(testFiles).filter((test, index, self) =>
       index === self.findIndex((t) => t.file === test.file && t.description === test.description)
     )
-
     // console.log('allRunnableTests', allRunnableTests)
     // process.exit(0)
 
     // const allRunnableTests = []
-
     if (allRunnableTests.length === 0) {
       console.log(`No runnable tests found in ${process.cwd()}`)
       process.exit(1)
@@ -353,8 +353,8 @@ program
     }, {})
 
     // If no args provided, run all test files
-    if (!args || args.length === 0) {
-      if (listOnly) {
+    if (!args || args.length === 0 || listHijack) {
+      if (listOnly || listHijack) {
         await listAndSelectTests({ 
           allTestItems: allRunnableTests, 
           testFiles, 
