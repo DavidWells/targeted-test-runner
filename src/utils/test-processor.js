@@ -67,7 +67,7 @@ const modifyTestFile = (content, testDescription) => {
 function createTempFile(content, originalFile, isESM = false) {
   const dir = path.dirname(originalFile)
   const ext = path.extname(originalFile)
-  const tempFile = path.join(dir, `${path.basename(originalFile, ext)}.temp${isESM ? ext : ''}`)
+  const tempFile = path.join(dir, `${path.basename(originalFile, ext)}.temp${isESM ? '.mjs' : ''}`)
   fs.writeFileSync(tempFile, content)
   return tempFile
 }
