@@ -245,7 +245,8 @@ const listAndSelectTests = async ({
   )
 
   choices.push(
-    ...itemsToList.map(({ file, description, quoteType, lineNumber }) => {
+    ...itemsToList.map((item) => {
+      const { file, description, quoteType, lineNumber, isESM } = item
       let highlightedDescription = description
       if (testDescription) {
         const regex = new RegExp(`(${testDescription})`, 'gi')
@@ -253,7 +254,7 @@ const listAndSelectTests = async ({
       }
       return {
         title: `◉ Run ${formatTestWrapper(description, testDescription, quoteType)} in ${nicePath(file)}`,
-        value: { file, description, isSingleTest: true, lineNumber },
+        value: Object.assign(item, { isSingleTest: true }),
       }
     }),
   )
@@ -660,7 +661,7 @@ function betterFuzzySort(searchTerm) {
 function findTestsInFiles(testFiles) {
   return testFiles.map(file => {
     const content = readTestFile(file)
-    const isESM = /^(import|export)\s/m.test(content)
+    const isESM = /(?:^|\n)\s*(?:import|export)\s/m.test(content)
     const lines = content.split('\n')
     const testMatches = []
     
