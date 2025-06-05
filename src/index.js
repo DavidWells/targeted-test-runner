@@ -661,8 +661,51 @@ function betterFuzzySort(searchTerm) {
 function findTestsInFiles(testFiles) {
   return testFiles.map(file => {
     const content = readTestFile(file)
-    const isESM = /(?:^|\n)\s*(?:import|export)\s/m.test(content)
     const lines = content.split('\n')
+    let isESM = false
+    let inSingleQuote = false
+    let inDoubleQuote = false
+    let inBacktick = false
+    let backtickCount = 0
+    
+    for (const line of lines) {
+      // Count backticks in the line
+      const backticksInLine = (line.match(/`/g) || []).length
+      backtickCount += backticksInLine
+      
+      // If we have an odd number of backticks, we're in a multiline string
+      inBacktick = backtickCount % 2 === 1
+      
+      // Skip if we're inside any type of quote
+      if (inSingleQuote || inDoubleQuote || inBacktick) {
+        // Only update single/double quote state if we're not in a backtick string
+        if (!inBacktick) {
+          // Count quotes in the line
+          const singleQuotes = (line.match(/'/g) || []).length
+          const doubleQuotes = (line.match(/"/g) || []).length
+          
+          // Update quote state
+          if (singleQuotes % 2 === 1) inSingleQuote = !inSingleQuote
+          if (doubleQuotes % 2 === 1) inDoubleQuote = !inDoubleQuote
+        }
+        continue
+      }
+      
+      // Check for import/export statements when not in quotes
+      if (/(?:^|\n)\s*(?:import|export)\s/m.test(line)) {
+        isESM = true
+        break
+      }
+      
+      // Update quote state for next line if not in backtick
+      if (!inBacktick) {
+        const singleQuotes = (line.match(/'/g) || []).length
+        const doubleQuotes = (line.match(/"/g) || []).length
+        inSingleQuote = singleQuotes % 2 === 1
+        inDoubleQuote = doubleQuotes % 2 === 1
+      }
+    }
+    
     const testMatches = []
     
     lines.forEach((line, lineNumber) => {
