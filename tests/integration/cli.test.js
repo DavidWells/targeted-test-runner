@@ -9,7 +9,7 @@ test('CLI finds and matches test', () => {
   const output = execSync(cmd, { encoding: 'utf8' })
   console.log('CMD output')
   console.log(output)
-  assert.is(output.includes('Running test: "test two"'), true, 'should match test two')
+  assert.is(output.includes('Starting test "test two"'), true, 'should match test two')
 })
 
 test('CLI handles no matches gracefully', () => {

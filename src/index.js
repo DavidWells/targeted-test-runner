@@ -12,8 +12,8 @@ const { logBox } = require('@davidwells/box-logger')
 const nicePath = require('./utils/nice-path')
 const chalk = require('./utils/chalk')
 const { createEditorLink } = require('./utils/links')
-const isFileEsm = require('is-file-esm')
-const { findTestsInFiles, findTestsInFilesBasic, findTestsInFilesOtherFrameworks } = require('./utils/find-tests')
+const { logLine, logHeader } = require('@davidwells/box-logger')
+const { findTestsInFiles } = require('./utils/find-tests')
 
 const FUSE_THRESHOLD = 0.3
 
@@ -301,7 +301,12 @@ async function runSingleTest(testInfo, originalSearchTerm = null, copyToClipboar
     })
     cleanupTempFile(tempFile)
 
-    await copyCommandToClipboard(`${cleanMacPath(file)} "${description}"`, copyToClipboard)
+    await copyCommandToClipboard(`${cleanMacPath(file)} "${description}" --exact`, copyToClipboard)
+    const openLinkTiny = createEditorLink(testInfo.file, testInfo.lineNumber, 0, `${nicePath(file)}:${testInfo.lineNumber}`)
+    const symbol = testExitCode === 0 ? 'success' : 'error'
+    const thickness = testExitCode === 0 ? 'bold' : 'thick'
+    logLine[symbol](` Ending test "${description}" ${openLinkTiny}`, { borderStyle: thickness })
+    console.log()
 
     return testExitCode
   } catch (error) {
@@ -342,6 +347,7 @@ program
   .option('-a, --all', 'Run all matching tests instead of just the best match')
   .option('-r, --run', 'Alias for --all: Run all matching tests')
   .option('-f, --force', 'Alias for --all: Run all matching tests')
+  .option('-e, --exact', 'Run exact match only')
   .option('-l, --list', 'List all test descriptions found')
   .option('--ls', 'List all test descriptions found (alias for --list)')
   .option('-c, --copy', 'Copy the command to clipboard')
@@ -380,6 +386,8 @@ Examples:
     const emptyFlags = Object.keys(options).length === 0
     const listOnly = options.list || options.ls
     const runAllMatchingFlag = options.all || options.a || options.run || options.r || options.force || options.f
+    const exactFlag = options.exact || options.e
+    const forceFlag = options.force || options.f
     const copyToClipboard = options.copy || options.c
     const listHijack = emptyFlags && (args.length === 1 && (args[0] === 'list' || args[0] === 'ls'))
     const runHijack = emptyFlags && (args.length === 1 && (args[0] === 'run' || args[0] === 'r'))
@@ -511,6 +519,16 @@ Examples:
     const exactMatches = fuzzyResults.filter(result => 
       result.item.description.toLowerCase() === testDescription.toLowerCase()
     )
+
+    /* If one exact match, and --force flag, run it directly */
+    if (exactFlag && exactMatches.length === 1) {
+      console.log('Using --force flag, running exact match directly.\n')
+      logger.cli(
+        `Found exact match for "${testDescription}": "${exactMatches[0].item.description}" in ${nicePath(exactMatches[0].item.file)}`
+      )
+      const exitCode = await runSingleTest(exactMatches[0].item, testDescription, copyToClipboard)
+      process.exit(exitCode)
+    }
 
     if (exactMatches.length === 1 && !runAllMatchingFlag) {
       // Check if any other fuzzy results start with the exact match

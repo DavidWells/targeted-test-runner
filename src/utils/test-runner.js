@@ -96,10 +96,21 @@ const executeTest = async (testFile, opts = {}) => {
   }
 
   if (bestMatch.description) {
-    const openLinkTiny = createEditorLink(bestMatch.file, bestMatch.lineNumber, 0, `Open test`)
+    const openLinkTiny = createEditorLink(
+      bestMatch.file, 
+      bestMatch.lineNumber, 
+      0, 
+      `${nicePath(bestMatch.file)}:${bestMatch.lineNumber}`
+    )
     // const openLink = createEditorLink(bestMatch.file, bestMatch.lineNumber, 0, `Open "${bestMatch.description}" test in editor`)
-    logLine(`🏃  Running test: "${bestMatch.description}" from ${nicePath(bestMatch.file)}:${bestMatch.lineNumber} - ${openLinkTiny}`, { minWidth: '100%', maxWidth: '100%', padding: 0 })
-    console.log()
+    const style = { 
+      minWidth: '100%', maxWidth: '100%', padding: 0, borderStyle: 'bold', borderColor: 'cyanBright',
+    }
+    const msg = `\n🏃 Starting test "${bestMatch.description}" ${openLinkTiny}\n`
+    logLine({ borderColor: 'gray'})
+    //logLine(msg, style)
+    
+    console.log(msg)
     // console.log(openLink)
     // console.log() 
   }

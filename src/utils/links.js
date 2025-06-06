@@ -6,7 +6,7 @@ function createEditorLink(filePath, line = 1, column = 1, customDisplay = null) 
   const url = `cursor://file${absolutePath}:${line}:${column}`
   const display = customDisplay || `${path.basename(filePath)}:${line}`
   
-  return `\x1b]8;;${url}\x1b\\${chalk.cyan(display)}\x1b]8;;\x1b\\`
+  return `\x1b]8;;${url}\x1b\\${chalk.cyanBright(display)}\x1b]8;;\x1b\\`
 }
 
 function createEditorLinkPlain(filePath, line = 1, column = 1, customDisplay = null) {
