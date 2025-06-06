@@ -2,12 +2,13 @@
 const fs = require('fs')
 const path = require('path')
 const Fuse = require('fuse.js')
+// Alt searcher maybe https://github.com/kentcdodds/match-sorter/blob/main/src/index.ts
 const prompts = require('prompts')
 const { program } = require('commander')
 const logger = require('./utils/logger')
 const { findTestFiles, readTestFile, modifyTestFile, createTempFile } = require('./utils/test-processor')
 const { executeTest } = require('./utils/test-runner')
-const { cleanupTempFile } = require('./utils/cleanup')
+const { cleanupTempFile, trackTempFile } = require('./utils/cleanup')
 const { logBox } = require('@davidwells/box-logger')
 const nicePath = require('./utils/nice-path')
 const chalk = require('./utils/chalk')
@@ -293,6 +294,9 @@ async function runSingleTest(testInfo, originalSearchTerm = null, copyToClipboar
   const modified = modifyTestFile(content, description)
   const tempFile = await createTempFile(modified, file)
   logger.cli(`Created temporary file: ${tempFile}`)
+  
+  // Track the temp file for cleanup
+  trackTempFile(tempFile)
 
   try {
     const testExitCode = await executeTest(tempFile, {

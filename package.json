@@ -18,6 +18,7 @@
   "license": "ISC",
   "dependencies": {
     "@davidwells/box-logger": "^1.0.17",
+    "@davidwells/graceful-exit": "^0.0.2",
     "clipboardy": "^3.0.0",
     "commander": "^11.1.0",
     "debug": "^4.3.4",

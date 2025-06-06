@@ -6,7 +6,9 @@ test('sub-dir', () => {
 })
 
 // Basic value comparison tests
-test('sandwich', () => {
+test('sandwich', async () => {
+  await new Promise(resolve => setTimeout(resolve, 2000))
+
   assert.is(2 + 2, 4)
 })
 
