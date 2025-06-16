@@ -27,10 +27,17 @@ function logFailedTests(failedTests) {
   if (failedTests && failedTests.length > 0) {
     console.log()
     logger.cli('❌ Failed tests:')
-    failedTests.forEach(({ file, exitCode, error, description }) => {
+    failedTests.forEach(({ file, exitCode, error, description, stderr }) => {
       const filePath = nicePath(file)
       if (error) {
         console.log(`  • ${filePath}${description ? ` - "${description}"` : ''} - Error: ${error}`)
+        // If the error has stderr output, show it
+        if (error.stderr) {
+          console.log(`    Stderr: ${error.stderr}`)
+        }
+      } else if (stderr) {
+        console.log(`  • ${filePath}${description ? ` - "${description}"` : ''} - Exit code: ${exitCode}`)
+        console.log(`    Stderr: ${stderr}`)
       } else {
         console.log(`  • ${filePath}${description ? ` - "${description}"` : ''} - Exit code: ${exitCode}`)
       }
@@ -118,7 +125,11 @@ async function runAllTestsInFiles(filesToRun, description = 'all tests', testCou
     } catch (error) {
       logger.cli('Error executing test file:', error)
       overallExitCode = 1
-      failedTests.push({ file, error: error.message || error })
+      failedTests.push({ 
+        file, 
+        error: error.message || error,
+        stderr: error.stderr || null
+      })
     }
   }
   
@@ -339,6 +350,10 @@ async function runSingleTest(testInfo, originalSearchTerm = null, copyToClipboar
     return testExitCode
   } catch (error) {
     console.log('Error executing single test:', error)
+    // Log stderr if available
+    if (error.stderr) {
+      console.log('Test stderr output:', error.stderr)
+    }
     cleanupTempFile(tempFile)
     return 1
   }

@@ -31,13 +31,31 @@ async function spawnProcess(fileToRun) {
         reject(new Error('ESM_ERROR'))
         return
       }
+      
+      // If test failed and we have stderr output, include it in the result
+      if (code !== 0 && stderrOutput.trim()) {
+        const error = new Error(`Test failed with exit code ${code}`)
+        error.code = 'TEST_FAILED'
+        error.exitCode = code
+        error.stderr = stderrOutput.trim()
+        logger.runner(`Test execution failed with status: ${code}`)
+        logger.runner('Stderr output:', stderrOutput.trim())
+        reject(error)
+        return
+      }
+      
       logger.runner(`Test execution completed with status: ${code === 0 ? 'passed' : 'failed'}`)
       resolve(code)
     })
     
     process.on('error', (error) => {
-      logger.runner('Test execution error:', error)
-      reject(error)
+      // Enhance spawn errors with more context
+      const enhancedError = new Error(`Spawn process error: ${error.message}`)
+      enhancedError.code = error.code || 'SPAWN_ERROR'
+      enhancedError.originalError = error
+      enhancedError.file = fileToRun
+      logger.runner('Test execution spawn error:', enhancedError.message)
+      reject(enhancedError)
     })
   })
 }
