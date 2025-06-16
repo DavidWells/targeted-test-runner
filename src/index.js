@@ -21,6 +21,25 @@ const FUSE_THRESHOLD = 0.3
 // --- Helper Functions for CLI Logic ---
 
 /**
+ * Logs failed tests before process exit
+ */
+function logFailedTests(failedTests) {
+  if (failedTests && failedTests.length > 0) {
+    console.log()
+    logger.cli('❌ Failed tests:')
+    failedTests.forEach(({ file, exitCode, error, description }) => {
+      const filePath = nicePath(file)
+      if (error) {
+        console.log(`  • ${filePath}${description ? ` - "${description}"` : ''} - Error: ${error}`)
+      } else {
+        console.log(`  • ${filePath}${description ? ` - "${description}"` : ''} - Exit code: ${exitCode}`)
+      }
+    })
+    console.log()
+  }
+}
+
+/**
  * Parses command line arguments to determine the test path and description.
  */
 function parseCliArguments(args) {
@@ -86,19 +105,24 @@ async function runAllTestsInFiles(filesToRun, description = 'all tests', testCou
   console.log()
 
   let overallExitCode = 0
+  const failedTests = []
+  
   for (const file of filesToRun) {
     logger.cli(`Executing test file: ${nicePath(file)}`)
     try {
       const testExitCode = await executeTest(file)
       if (testExitCode !== 0) {
         overallExitCode = testExitCode
+        failedTests.push({ file, exitCode: testExitCode })
       }
     } catch (error) {
       logger.cli('Error executing test file:', error)
       overallExitCode = 1
+      failedTests.push({ file, error: error.message || error })
     }
   }
-  return overallExitCode
+  
+  return { exitCode: overallExitCode, failedTests }
 }
 
 /**
@@ -438,7 +462,8 @@ Examples:
 
     if (runHijack) {
       console.log(`Running all ${allRunnableTests.length} tests in ${process.cwd()}\n`)
-      const exitCode = await runAllTestsInFiles(testFiles, 'all tests', totalTestCounts)
+      const { exitCode, failedTests } = await runAllTestsInFiles(testFiles, 'all tests', totalTestCounts)
+      logFailedTests(failedTests)
       process.exit(exitCode)
     }
 
@@ -456,7 +481,8 @@ Examples:
       }
 
       console.log(`Running all tests in: ${nicePath(testPath)}\n`)
-      const exitCode = await runAllTestsInFiles(testFiles, `all tests in ${nicePath(testPath)}`, totalTestCounts)
+      const { exitCode, failedTests } = await runAllTestsInFiles(testFiles, `all tests in ${nicePath(testPath)}`, totalTestCounts)
+      logFailedTests(failedTests)
       process.exit(exitCode)
     }
 
@@ -472,6 +498,9 @@ Examples:
             `Running best match for "${testDescription}": "${bestMatch.description}" in ${nicePath(bestMatch.file)}`,
           )
           exitCode = await runSingleTest(bestMatch, testDescription)
+          if (exitCode !== 0) {
+            logFailedTests([{ file: bestMatch.file, exitCode, description: bestMatch.description }])
+          }
         } else {
           logger.cli(`No tests found matching "${testDescription}".`)
           exitCode = 1
@@ -479,7 +508,9 @@ Examples:
       } else {
         // No description, run all tests in the determined scope
         const scopeDesc = testPath ? `all tests in ${nicePath(testPath)}` : 'all tests in project'
-        exitCode = await runAllTestsInFiles(testFiles, scopeDesc, totalTestCounts)
+        const result = await runAllTestsInFiles(testFiles, scopeDesc, totalTestCounts)
+        exitCode = result.exitCode
+        logFailedTests(result.failedTests)
       }
       process.exit(exitCode)
     }
@@ -507,7 +538,7 @@ Examples:
         allFlag: runAllMatchingFlag,
         totalTestCounts
       })
-      return handleSelectionResult(selection, allRunnableTests, testFiles, null, runAllMatchingFlag, copyToClipboard)
+      return handleSelectionResult(selection, allRunnableTests, testFiles, null, runAllMatchingFlag, copyToClipboard, totalTestCounts)
     }
 
     // We have a testDescription, proceed with fuzzy search
@@ -531,6 +562,9 @@ Examples:
         `Found exact match for "${testDescription}": "${exactMatches[0].item.description}" in ${nicePath(exactMatches[0].item.file)}`
       )
       const exitCode = await runSingleTest(exactMatches[0].item, testDescription, copyToClipboard)
+      if (exitCode !== 0) {
+        logFailedTests([{ file: exactMatches[0].item.file, exitCode, description: exactMatches[0].item.description }])
+      }
       process.exit(exitCode)
     }
 
@@ -551,6 +585,9 @@ Examples:
           console.log(`But using the exact match: "${exactMatches[0].item.description}" in ${nicePath(exactMatches[0].item.file)}\n`)
         }
         const exitCode = await runSingleTest(exactMatches[0].item, testDescription, copyToClipboard)
+        if (exitCode !== 0) {
+          logFailedTests([{ file: exactMatches[0].item.file, exitCode, description: exactMatches[0].item.description }])
+        }
         process.exit(exitCode)
       }
     }
@@ -582,6 +619,7 @@ Examples:
         testDescription,
         runAllMatchingFlag,
         copyToClipboard,
+        totalTestCounts,
       )
     }
 
@@ -594,16 +632,22 @@ Examples:
     } else {
       // Multiple tests due to --all flag
       logger.cli(`Running all ${testsToExecute.length} tests matching "${testDescription}":`)
+      const failedTests = []
       for (const testInfo of testsToExecute) {
         const singleExitCode = await runSingleTest(testInfo, testDescription, false) // No individual copy for --all
-        if (singleExitCode !== 0) overallExitCode = singleExitCode
+        if (singleExitCode !== 0) {
+          overallExitCode = singleExitCode
+          failedTests.push({ file: testInfo.file, exitCode: singleExitCode, description: testInfo.description })
+        }
       }
+      logFailedTests(failedTests)
       if (testsToExecute.length > 0) {
         const niceDir = nicePath(testPath)
         const niceDirRender = (niceDir) ? `${niceDir} ` : ''
         await copyCommandToClipboard(`${niceDirRender}"${testDescription}" --all`, copyToClipboard)
       }
     }
+    logFailedTests(overallExitCode !== 0 && testsToExecute.length === 1 ? [{ file: testsToExecute[0].file, exitCode: overallExitCode, description: testsToExecute[0].description }] : [])
     process.exit(overallExitCode)
   })
 
@@ -618,6 +662,7 @@ async function handleSelectionResult(
   originalSearchTerm, // The description user typed, if any
   runAllMatchingFlag,
   copyToClipboard,
+  totalTestCounts, // Test counts per file
 ) {
   // The --all flag state
   if (selectedOption.cancel) {
@@ -630,26 +675,39 @@ async function handleSelectionResult(
   if (selectedOption.runAllMatching) {
     // User chose "Run all X matching tests for '...'"
     logger.cli(`Running all ${candidateTests.length} tests matching "${selectedOption.testDescription}":`)
+    const failedTests = []
     for (const testInfo of candidateTests) {
       // candidateTests here are the fuzzyResults.map(r => r.item)
       const testExitCode = await runSingleTest(testInfo, selectedOption.testDescription, false)
-      if (testExitCode !== 0) exitCode = testExitCode
+      if (testExitCode !== 0) {
+        exitCode = testExitCode
+        failedTests.push({ file: testInfo.file, exitCode: testExitCode, description: testInfo.description })
+      }
     }
+    logFailedTests(failedTests)
     if (candidateTests.length > 0) {
       await copyCommandToClipboard(`"${selectedOption.testDescription}" --all`, copyToClipboard)
     }
   } else if (selectedOption.runAllFound) {
     // User chose "Run all found tests" (when no initial description)
-    exitCode = await runAllTestsInFiles(allFoundTestFiles, 'all found tests', totalTestCounts)
+    const result = await runAllTestsInFiles(allFoundTestFiles, 'all found tests', totalTestCounts)
+    exitCode = result.exitCode
+    logFailedTests(result.failedTests)
     // No specific command to copy for "all found tests" unless we define one.
   } else if (selectedOption.runAllInFile) {
     logger.cli(`Running all tests in: ${nicePath(selectedOption.file)}`)
     exitCode = await executeTest(selectedOption.file)
+    if (exitCode !== 0) {
+      logFailedTests([{ file: selectedOption.file, exitCode }])
+    }
     // Potentially copy command: tt path/to/file
     await copyCommandToClipboard(cleanMacPath(selectedOption.file), copyToClipboard)
   } else if (selectedOption.isSingleTest) {
     // User picked a specific test
     exitCode = await runSingleTest(selectedOption, originalSearchTerm, copyToClipboard)
+    if (exitCode !== 0) {
+      logFailedTests([{ file: selectedOption.file, exitCode, description: selectedOption.description }])
+    }
   } else {
     logger.cli('Unknown selection. Aborting.')
     exitCode = 1
