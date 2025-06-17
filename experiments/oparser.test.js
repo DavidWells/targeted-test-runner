@@ -2,8 +2,12 @@ const fs = require('fs')
 const path = require('path')
 const { test } = require('uvu') 
 const assert = require('uvu/assert')
-const convert = require('../src/utils/convert')
+// const convert = require('../src/utils/convert')
 // const { parse, parseValue } = require('../')
+
+// ksndlskdnl
+
+// throw new Error('test')
 
 const parse = (str) => {
   return str

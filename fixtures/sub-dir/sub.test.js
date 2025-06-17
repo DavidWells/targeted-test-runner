@@ -13,7 +13,7 @@ test('sandwich', async () => {
 })
 
 test('mmm tasty', () => {
-  assert.is('hello' + ' world', 'hello world')
+  assert.is('hello' + ' world', 'helxlo world')
 })
 
 test.run()

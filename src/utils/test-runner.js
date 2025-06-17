@@ -5,6 +5,7 @@ const { logLine, logHeader } = require('@davidwells/box-logger')
 const { createEditorLink } = require('./links')
 const logger = require('./logger')
 const nicePath = require('./nice-path')
+const stripAnsi = require('./strip-ansi')
 
 class ESMError extends Error {
   constructor(message, stderr, previousErrors = []) {
@@ -22,24 +23,24 @@ async function spawnProcess(fileToRun, errors = []) {
   return new Promise((resolve, reject) => {
     let stdoutOutput = ''
     let stderrOutput = ''
-    const process = spawn('node', [fileToRun], {
-      stdio: ['inherit', 'inherit', 'pipe'] // Pipe stderr to capture it
+    const child = spawn('node', [fileToRun], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: { ...process.env, FORCE_COLOR: '1' }
     })
 
-    // Log stdout
-    process.stdout?.on('data', (data) => {
-      stdoutOutput += data.toString()
-      // console.log('stdout:', data.toString())
+    // Print and collect stdout
+    child.stdout.on('data', (data) => {
+      stdoutOutput += stripAnsi(data.toString())
+      process.stdout.write(data) // Print live with colors
     })
 
-    // Capture stderr
-    process.stderr?.on('data', (data) => {
-      const output = data.toString()
-      stderrOutput += output
-      // console.log(`${fileToRun} stderr:`, output)
+    // Print and collect stderr
+    child.stderr.on('data', (data) => {
+      stderrOutput += stripAnsi(data.toString())
+      process.stderr.write(data) // Print live with colors
     })
     
-    process.on('close', (code) => {
+    child.on('close', (code) => {
       // Check for module not found error first
       if (stderrOutput.includes('Error: Cannot find module')) {
         const errorLine = stderrOutput.split('\n').find(line => line.startsWith('Error:')) || 'Module not found'
@@ -84,10 +85,16 @@ async function spawnProcess(fileToRun, errors = []) {
       }
       
       logger.runner(`Test execution completed with status: ${code === 0 ? 'passed' : 'failed'}`)
-      resolve(code)
+      resolve({
+        exitCode: code,
+        stdout: stdoutOutput.trim(),
+        stderr: stderrOutput.trim(),
+        success: code === 0,
+        file: fileToRun
+      })
     })
     
-    process.on('error', (error) => {
+    child.on('error', (error) => {
       // Enhance spawn errors with more context
       const enhancedError = new Error(`Spawn process error: ${error.message}`)
       enhancedError.code = error.code || 'SPAWN_ERROR'
@@ -119,7 +126,7 @@ async function runTest(fileToRun) {
     tempFile = await createTempFileJSFile(content, fileToRun)
     
     try {
-      const result = await spawnProcess(tempFile, [error.message])
+      const result = await spawnProcess(tempFile, [error])
       // Clean up temp file
       fs.unlinkSync(tempFile)
       return result
@@ -132,13 +139,17 @@ async function runTest(fileToRun) {
       tempFile = await createTempFileWithExtension(content, fileToRun, '.mjs')
       
       try {
-        const result = await spawnProcess(tempFile, [error.message, jsError.message])
+        const result = await spawnProcess(tempFile, [error, jsError])
         // Clean up temp file
         fs.unlinkSync(tempFile)
         return result
       } catch (mjsError) {
         // Clean up temp file even if retry fails
         fs.unlinkSync(tempFile)
+        // Preserve the original error's stderr if it exists
+        if (error.stderr) {
+          mjsError.stderr = error.stderr
+        }
         throw mjsError
       }
     }
