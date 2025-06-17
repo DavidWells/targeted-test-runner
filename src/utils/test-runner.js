@@ -84,13 +84,21 @@ async function spawnProcess(fileToRun, errors = []) {
         return
       }
       
+      // Parse stdout for skipped tests
+      let skippedCount = 0
+      const skippedMatch = stdoutOutput.match(/Skipped:\s*(\d+)/)
+      if (skippedMatch) {
+        skippedCount = parseInt(skippedMatch[1], 10)
+      }
+
       logger.runner(`Test execution completed with status: ${code === 0 ? 'passed' : 'failed'}`)
       resolve({
         exitCode: code,
         stdout: stdoutOutput.trim(),
         stderr: stderrOutput.trim(),
         success: code === 0,
-        file: fileToRun
+        file: fileToRun,
+        skippedCount
       })
     })
     
