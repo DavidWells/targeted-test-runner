@@ -23,7 +23,7 @@ const FUSE_THRESHOLD = 0.3
 /**
  * Logs failed tests before process exit
  */
-function logFailedTests(failedTests, caller = '') {
+function logFailedTests(failedTests, caller = '', itemsToList = null) {
   // console.log('failedTests', failedTests)
   if (!failedTests || failedTests.length === 0) {
     return
@@ -92,7 +92,7 @@ function logFailedTests(failedTests, caller = '') {
         if (failedTestNames.length > 0) {
           const testWord = failedTestNames.length === 1 ? 'test' : 'tests'
           console.log(
-            chalk.gray(`Failed ${testWord} (${failedTestNames.length}):\n${findFailedTestLines(file, failedTestNames)}`)
+            chalk.gray(`Failed ${testWord} (${failedTestNames.length}):\n${findFailedTestLines(file, failedTestNames, itemsToList)}`)
           )
           console.log()
         }
@@ -545,7 +545,7 @@ Examples:
     if (runHijack) {
       console.log(`Running all ${allRunnableTests.length} tests in ${process.cwd()}\n`)
       const { exitCode, failedTests } = await runAllTestsInFiles(testFiles, 'all tests', totalTestCounts)
-      logFailedTests(failedTests, 'run-all-tests')
+      logFailedTests(failedTests, 'run-all-tests', allRunnableTests)
       process.exit(exitCode)
     }
 
@@ -568,7 +568,7 @@ Examples:
         `all tests in ${nicePath(testPath)}`, 
         totalTestCounts
       )
-      logFailedTests(failedTests, 'run-all-tests-in-path')
+      logFailedTests(failedTests, 'run-all-tests-in-path', allRunnableTests)
       process.exit(exitCode)
     }
 
@@ -585,7 +585,7 @@ Examples:
           )
           const testResult = await runSingleTest(bestMatch, testDescription)
           if (!testResult.success) {
-            logFailedTests([{ file: bestMatch.file, exitCode: testResult.exitCode, description: bestMatch.description }], 'non-tty-single-test')
+            logFailedTests([{ file: bestMatch.file, exitCode: testResult.exitCode, description: bestMatch.description }], 'non-tty-single-test', allRunnableTests)
           }
         } else {
           logger.cli(`No tests found matching "${testDescription}".`)
@@ -596,7 +596,7 @@ Examples:
         const scopeDesc = testPath ? `all tests in ${nicePath(testPath)}` : 'all tests in project'
         const result = await runAllTestsInFiles(testFiles, scopeDesc, totalTestCounts)
         exitCode = result.exitCode
-        logFailedTests(result.failedTests, 'non-tty')
+        logFailedTests(result.failedTests, 'non-tty', allRunnableTests)
       }
       process.exit(exitCode)
     }
@@ -624,7 +624,15 @@ Examples:
         allFlag: runAllMatchingFlag,
         totalTestCounts
       })
-      return handleSelectionResult(selection, allRunnableTests, testFiles, null, runAllMatchingFlag, copyToClipboard, totalTestCounts)
+      return handleSelectionResult(
+        selection, 
+        allRunnableTests, 
+        testFiles, 
+        null, 
+        runAllMatchingFlag, 
+        copyToClipboard, 
+        totalTestCounts,
+      )
     }
 
     // We have a testDescription, proceed with fuzzy search
@@ -649,7 +657,7 @@ Examples:
       )
       const testResult = await runSingleTest(exactMatches[0].item, testDescription, copyToClipboard)
       if (!testResult.success) {
-        logFailedTests([{ file: exactMatches[0].item.file, exitCode: testResult.exitCode, description: exactMatches[0].item.description }], 'exact-match-force')
+        logFailedTests([{ file: exactMatches[0].item.file, exitCode: testResult.exitCode, description: exactMatches[0].item.description }], 'exact-match-force', allRunnableTests)
       }
       process.exit(testResult.exitCode)
     }
@@ -672,7 +680,7 @@ Examples:
         }
         const testResult = await runSingleTest(exactMatches[0].item, testDescription, copyToClipboard)
         if (!testResult.success) {
-          logFailedTests([{ file: exactMatches[0].item.file, exitCode: testResult.exitCode, description: exactMatches[0].item.description }], 'exact-match-single')
+          logFailedTests([{ file: exactMatches[0].item.file, exitCode: testResult.exitCode, description: exactMatches[0].item.description }], 'exact-match-single', allRunnableTests)
         }
         process.exit(testResult.exitCode)
       }
@@ -717,7 +725,7 @@ Examples:
       const testResult = await runSingleTest(testsToExecute[0], testDescription, false)
       if (!testResult.success) {
         overallExitCode = testResult.exitCode
-        logFailedTests([{ file: testsToExecute[0].file, exitCode: testResult.exitCode, description: testsToExecute[0].description }], 'run-single-or-multiple')
+        logFailedTests([{ file: testsToExecute[0].file, exitCode: testResult.exitCode, description: testsToExecute[0].description }], 'run-single-or-multiple', testsToExecute)
       }
     } else {
       // Multiple tests due to --all flag
@@ -736,14 +744,14 @@ Examples:
           })
         }
       }
-      logFailedTests(failedTests, 'run-all-matching')
+      logFailedTests(failedTests, 'run-all-matching', testsToExecute)
       if (testsToExecute.length > 0) {
         const niceDir = nicePath(testPath)
         const niceDirRender = (niceDir) ? `${niceDir} ` : ''
         await copyCommandToClipboard(`${niceDirRender}"${testDescription}" --all`, copyToClipboard)
       }
     }
-    logFailedTests(overallExitCode !== 0 && testsToExecute.length === 1 ? [{ file: testsToExecute[0].file, exitCode: overallExitCode, description: testsToExecute[0].description }] : [], 'run-single-or-multiple')
+    logFailedTests(overallExitCode !== 0 && testsToExecute.length === 1 ? [{ file: testsToExecute[0].file, exitCode: overallExitCode, description: testsToExecute[0].description }] : [], 'run-single-or-multiple', testsToExecute)
     process.exit(overallExitCode)
   })
 
@@ -786,7 +794,7 @@ async function handleSelectionResult(
         })
       }
     }
-    logFailedTests(failedTests, 'run-all-matching-selection')
+    logFailedTests(failedTests, 'run-all-matching-selection', candidateTests)
     if (candidateTests.length > 0) {
       await copyCommandToClipboard(`"${selectedOption.testDescription}" --all`, copyToClipboard)
     }
@@ -794,13 +802,17 @@ async function handleSelectionResult(
     // User chose "Run all found tests" (when no initial description)
     const result = await runAllTestsInFiles(allFoundTestFiles, 'all found tests', totalTestCounts)
     exitCode = result.exitCode
-    logFailedTests(result.failedTests, 'run-all-found')
+    logFailedTests(result.failedTests, 'run-all-found', candidateTests)
     // No specific command to copy for "all found tests" unless we define one.
   } else if (selectedOption.runAllInFile) {
     logger.cli(`Running all tests in: ${nicePath(selectedOption.file)}`)
     const testResult = await executeTest(selectedOption.file)
     if (!testResult.success) {
-      logFailedTests([{ file: selectedOption.file, exitCode: testResult.exitCode }], 'run-all-in-file')
+      logFailedTests([{
+        file: selectedOption.file, 
+        exitCode: testResult.exitCode, 
+        lineNumber: selectedOption.lineNumber,
+      }], 'run-all-in-file', allRunnableTests)
     }
     // Potentially copy command: tt path/to/file
     await copyCommandToClipboard(cleanMacPath(selectedOption.file), copyToClipboard)
@@ -808,7 +820,12 @@ async function handleSelectionResult(
     // User picked a specific test
     const testResult = await runSingleTest(selectedOption, originalSearchTerm, copyToClipboard)
     if (!testResult.success) {
-      logFailedTests([{ file: selectedOption.file, exitCode: testResult.exitCode, description: selectedOption.description }], 'run-single-test-selection')
+      logFailedTests([{ 
+        file: selectedOption.file, 
+        exitCode: testResult.exitCode, 
+        description: selectedOption.description,
+        lineNumber: selectedOption.lineNumber,
+      }], 'run-single-test-selection', allRunnableTests)
     }
     process.exit(testResult.exitCode)
   } else {

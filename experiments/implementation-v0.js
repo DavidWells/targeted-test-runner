@@ -492,9 +492,10 @@ function betterFuzzySort(searchTerm) {
 const findTestsInFiles = (testFiles) => {
   return testFiles.map(file => {
     const content = readTestFile(file)
-    const testMatches = content.match(/test\([`'\"]([^`'\"]+)[`'\"]/g) || []
+    const testMatches = content.match(/test\s*\(\s*(?:'((?:\\.|[^'\\])*)'|"((?:\\.|[^"\\])*)"|`((?:\\.|[^`\\])*)`)/g) || []
     return testMatches.map(match => {
-      const description = match.match(/test\([`'\"]([^`'\"]+)[`'\"]/)[1]
+      const innerMatch = match.match(/test\s*\(\s*(?:'((?:\\.|[^'\\])*)'|"((?:\\.|[^"\\])*)"|`((?:\\.|[^`\\])*)`)/)
+      const description = innerMatch[1] || innerMatch[2] || innerMatch[3]
       return { file, description }
     })
   }).flat()
