@@ -78,8 +78,38 @@ function findTestsInFilesOtherFrameworks(testFiles) {
   })
 }
 
+/**
+ * Finds line numbers for failed tests and creates hyperlinks
+ * @param {string} filePath - Path to the test file
+ * @param {string[]} failedTestNames - Array of failed test names
+ * @returns {string} Formatted output with hyperlinks
+ */
+function findFailedTestLines(filePath, failedTestNames) {
+  const content = readTestFile(filePath)
+  const lines = content.split('\n')
+  const { createEditorLink } = require('./links')
+  
+  return failedTestNames.map(testName => {
+    // Find the line number for this test
+    const lineNumber = lines.findIndex(line => {
+      // Match test() with any quote type
+      const match = line.match(/test\s*\(\s*[`'\"]([^`'\"]+)[`'\"]/)
+      return match && match[1] === testName
+    }) + 1 // Convert to 1-based line number
+    
+    if (lineNumber === 0) {
+      return ` "${testName}"` // No line number found, just return the name
+    }
+    
+    // Create hyperlink to the test
+    const link = createEditorLink(filePath, lineNumber, 0, `"${testName}"`, 'white')
+    return ` ${link}`
+  }).join('\n')
+}
+
 module.exports = {
   findTestsInFiles,
   findTestsInFilesBasic,
   findTestsInFilesOtherFrameworks,
+  findFailedTestLines
 }

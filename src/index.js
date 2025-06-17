@@ -14,7 +14,7 @@ const nicePath = require('./utils/nice-path')
 const chalk = require('./utils/chalk')
 const { createEditorLink } = require('./utils/links')
 const { logLine, logHeader } = require('@davidwells/box-logger')
-const { findTestsInFiles } = require('./utils/find-tests')
+const { findTestsInFiles, findFailedTestLines } = require('./utils/find-tests')
 
 const FUSE_THRESHOLD = 0.3
 
@@ -38,7 +38,8 @@ function logFailedTests(failedTests, caller = '') {
   }
 
   console.log()
-  console.log(chalk.redBright(`✖ Failed files (${failedTests.length}):\n`))
+  const fileWord = failedTests.length === 1 ? 'file' : 'files'
+  console.log(chalk.redBright(`✖ Failed ${fileWord} (${failedTests.length}):\n`))
   failedTests.forEach((failedTest) => {
     // console.log('failedTest', failedTest)
     const { file, exitCode, error, description, stderr, stdout } = failedTest
@@ -89,9 +90,11 @@ function logFailedTests(failedTests, caller = '') {
         //console.log('failedTestNames', failedTestNames)
         
         if (failedTestNames.length > 0) {
+          const testWord = failedTestNames.length === 1 ? 'test' : 'tests'
           console.log(
-            chalk.gray(`Failed tests (${failedTestNames.length}):\n${failedTestNames.map(name => ` "${name}"`).join('\n')}`)
+            chalk.gray(`Failed ${testWord} (${failedTestNames.length}):\n${findFailedTestLines(file, failedTestNames)}`)
           )
+          console.log()
         }
       }
     } else {
@@ -172,7 +175,7 @@ async function runAllTestsInFiles(filesToRun, description = 'all tests', testCou
   const failedTests = []
   
   for (const file of filesToRun) {
-    logger.cli(`Executing test file: ${nicePath(file)}`)
+    console.log(`Running test file: ${nicePath(file)}`)
     try {
       const testResult = await executeTest(file)
       if (!testResult.success) {
@@ -560,7 +563,11 @@ Examples:
       }
 
       console.log(`Running all tests in: ${nicePath(testPath)}\n`)
-      const { exitCode, failedTests } = await runAllTestsInFiles(testFiles, `all tests in ${nicePath(testPath)}`, totalTestCounts)
+      const { exitCode, failedTests } = await runAllTestsInFiles(
+        testFiles, 
+        `all tests in ${nicePath(testPath)}`, 
+        totalTestCounts
+      )
       logFailedTests(failedTests, 'run-all-tests-in-path')
       process.exit(exitCode)
     }
