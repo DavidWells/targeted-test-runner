@@ -6,8 +6,21 @@ const { createEditorLink } = require('./links')
 const logger = require('./logger')
 const nicePath = require('./nice-path')
 
-async function spawnProcess(fileToRun) {
+class ESMError extends Error {
+  constructor(message, stderr, previousErrors = []) {
+    // Use the actual error message from stderr if available
+    const errorMessage = stderr.split('\n').find(line => line.startsWith('Error:')) || message
+    super(errorMessage)
+    this.name = 'ESMError'
+    this.code = 'ESM_ERROR'
+    this.stderr = stderr
+    this.previousErrors = previousErrors
+  }
+}
+
+async function spawnProcess(fileToRun, errors = []) {
   return new Promise((resolve, reject) => {
+    let stdoutOutput = ''
     let stderrOutput = ''
     const process = spawn('node', [fileToRun], {
       stdio: ['inherit', 'inherit', 'pipe'] // Pipe stderr to capture it
@@ -15,6 +28,7 @@ async function spawnProcess(fileToRun) {
 
     // Log stdout
     process.stdout?.on('data', (data) => {
+      stdoutOutput += data.toString()
       // console.log('stdout:', data.toString())
     })
 
@@ -22,13 +36,36 @@ async function spawnProcess(fileToRun) {
     process.stderr?.on('data', (data) => {
       const output = data.toString()
       stderrOutput += output
-      // console.log('stderr:', output)
+      // console.log(`${fileToRun} stderr:`, output)
     })
     
     process.on('close', (code) => {
+      // Check for module not found error first
+      if (stderrOutput.includes('Error: Cannot find module')) {
+        const errorLine = stderrOutput.split('\n').find(line => line.startsWith('Error:')) || 'Module not found'
+        const error = new Error(errorLine.replace('Error: ', ''))
+        error.code = 'MODULE_NOT_FOUND'
+        error.stdout = stdoutOutput
+        error.stderr = stderrOutput
+        error.stack = stderrOutput // Add the full stderr as the stack trace
+        error.originalError = stderrOutput // Store the original error output
+        reject(error)
+        return
+      }
+
       // Check if we got an ESM error
       if (stderrOutput.includes('require is not defined in ES module scope')) {
-        reject(new Error('ESM_ERROR'))
+        // If we have previous errors, use the first non-ESM error
+        const previousNonESMError = errors.find(error => !(error instanceof ESMError))
+        if (previousNonESMError) {
+          // Ensure the original error's stderr is preserved
+          previousNonESMError.stderr = previousNonESMError.stderr || stderrOutput
+          previousNonESMError.stack = previousNonESMError.stack || stderrOutput
+          previousNonESMError.stdout = previousNonESMError.stdout || stdoutOutput
+          reject(previousNonESMError)
+          return
+        }
+        reject(new ESMError('ESM module error', stderrOutput, errors))
         return
       }
       
@@ -38,6 +75,8 @@ async function spawnProcess(fileToRun) {
         error.code = 'TEST_FAILED'
         error.exitCode = code
         error.stderr = stderrOutput.trim()
+        error.stdout = stdoutOutput.trim()
+        error.stack = stderrOutput.trim() // Add the full stderr as the stack trace
         logger.runner(`Test execution failed with status: ${code}`)
         logger.runner('Stderr output:', stderrOutput.trim())
         reject(error)
@@ -65,7 +104,11 @@ async function runTest(fileToRun) {
   try {
     return await spawnProcess(fileToRun)
   } catch (error) {
-    logger.runner('Initial run failed:', error.message)
+    const isSuppressed = error instanceof ESMError
+    
+    if (!isSuppressed) {
+      logger.runner('Initial run failed:', error.message)
+    }
   
     // If original file fails, try both extensions
     const content = fs.readFileSync(fileToRun, 'utf8')
@@ -76,7 +119,7 @@ async function runTest(fileToRun) {
     tempFile = await createTempFileJSFile(content, fileToRun)
     
     try {
-      const result = await spawnProcess(tempFile)
+      const result = await spawnProcess(tempFile, [error.message])
       // Clean up temp file
       fs.unlinkSync(tempFile)
       return result
@@ -89,7 +132,7 @@ async function runTest(fileToRun) {
       tempFile = await createTempFileWithExtension(content, fileToRun, '.mjs')
       
       try {
-        const result = await spawnProcess(tempFile)
+        const result = await spawnProcess(tempFile, [error.message, jsError.message])
         // Clean up temp file
         fs.unlinkSync(tempFile)
         return result

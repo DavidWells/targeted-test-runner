@@ -24,22 +24,47 @@ const FUSE_THRESHOLD = 0.3
  * Logs failed tests before process exit
  */
 function logFailedTests(failedTests) {
+  console.log('failedTests', failedTests)
   if (failedTests && failedTests.length > 0) {
     console.log()
     logger.cli('❌ Failed tests:')
     failedTests.forEach(({ file, exitCode, error, description, stderr }) => {
       const filePath = nicePath(file)
       if (error) {
-        console.log(`  • ${filePath}${description ? ` - "${description}"` : ''} - Error: ${error}`)
+        // If we have stderr, use the first line that starts with 'Error:'
+        const errorMessage = stderr ? stderr.split('\n').find(line => line.startsWith('Error:')) || error : error
+        console.log(
+          chalk.redBright(`  • ${filePath}${description ? ` - "${description}"` : ''} - Error: ${errorMessage}`)
+        )
         // If the error has stderr output, show it
-        if (error.stderr) {
-          console.log(`    Stderr: ${error.stderr}`)
+        if (error.stderr || error.originalError) {
+          const errorOutput = error.originalError || error.stderr
+          // Get all lines after the first Error: line
+          const lines = errorOutput.split('\n')
+          const errorIndex = lines.findIndex(line => line.startsWith('Error:'))
+          if (errorIndex !== -1) {
+            const stackLines = lines.slice(errorIndex + 1)
+              .filter(line => line.trim().startsWith('at '))
+            if (stackLines.length > 0) {
+              console.log(chalk.gray(`    Stack trace:\n${stackLines.join('\n')}`))
+            }
+          }
         }
       } else if (stderr) {
-        console.log(`  • ${filePath}${description ? ` - "${description}"` : ''} - Exit code: ${exitCode}`)
-        console.log(`    Stderr: ${stderr}`)
+        console.log(chalk.redBright(`  • ${filePath}${description ? ` - "${description}"` : ''} - Exit code: ${exitCode}`))
+        const lines = stderr.split('\n')
+        const errorIndex = lines.findIndex(line => line.startsWith('Error:'))
+        if (errorIndex !== -1) {
+          const stackLines = lines.slice(errorIndex + 1)
+            .filter(line => line.trim().startsWith('at '))
+          if (stackLines.length > 0) {
+            console.log(chalk.gray(`    Stack trace:\n${stackLines.join('\n')}`))
+          }
+        }
       } else {
-        console.log(`  • ${filePath}${description ? ` - "${description}"` : ''} - Exit code: ${exitCode}`)
+        console.log(
+          chalk.redBright(`  • ${filePath}${description ? ` - "${description}"` : ''} - Exit code: ${exitCode}`)
+        )
       }
     })
     console.log()
