@@ -23,4 +23,19 @@ test('CLI handles no matches gracefully', () => {
   }
 })
 
+test('CLI shows skipped tests in output', () => {
+  const cmd = 'node src/index.js "./fixtures/test-skipped.test.js"'
+  console.log('cmd', cmd)
+  const output = execSync(cmd, { encoding: 'utf8' })
+  console.log('CMD output for skipped tests')
+  console.log(output)
+  
+  // Verify that skipped tests section appears
+  assert.is(output.includes('Files with skipped tests'), true, 'should show Files with skipped tests header')
+  
+  // Verify the file path and skipped count appear
+  assert.is(output.includes('./fixtures/test-skipped.test.js'), true, 'should show the test file path')
+  assert.is(output.includes('3 skipped'), true, 'should show correct skipped test count')
+})
+
 test.run() 
