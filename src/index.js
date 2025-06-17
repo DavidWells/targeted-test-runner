@@ -29,12 +29,16 @@ function logFailedTests(failedTests, caller = '') {
     return
   }
 
+  if (caller === 'exact-match-single') {
+    return
+  }
+
   if (caller) {
     console.log('caller', caller)
   }
 
   console.log()
-  console.log('❌ Failed tests:')
+  console.log(chalk.redBright('✖ Failed tests:\n'))
   failedTests.forEach((failedTest) => {
     // console.log('failedTest', failedTest)
     const { file, exitCode, error, description, stderr, stdout } = failedTest
@@ -46,7 +50,7 @@ function logFailedTests(failedTests, caller = '') {
         errorMessage = `Exit code: ${exitCode}`
       }
       console.log(
-        chalk.redBright(`  • ${filePath}${description ? ` - "${description}"` : ''} - ${errorMessage}`)
+        chalk.redBright(`- ${filePath}${description ? ` - "${description}"` : ''} - ${errorMessage}`)
       )
       // If we have stderr output, show it
       if (stderr) {
@@ -82,10 +86,12 @@ function logFailedTests(failedTests, caller = '') {
           })
           .filter(Boolean)
 
-        console.log('failedTestNames', failedTestNames)
+        //console.log('failedTestNames', failedTestNames)
         
         if (failedTestNames.length > 0) {
-          console.log(chalk.gray(`    Failed test names:\n${failedTestNames.map(name => `      - "${name}"`).join('\n')}`))
+          console.log(
+            chalk.gray(`Failed test names:\n${failedTestNames.map(name => ` "${name}"`).join('\n')}`)
+          )
         }
       }
     } else {

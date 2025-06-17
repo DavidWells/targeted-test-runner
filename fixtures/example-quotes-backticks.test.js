@@ -12,7 +12,7 @@ function otherCodeTwo() {
 }
 
 test(`backticks one`, () => {
-  assert.equal(otherCode(), 1)
+  assert.equal(otherCode(), 11)
 })
 
 test(`backticks two`, () => {
