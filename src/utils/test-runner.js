@@ -5,39 +5,103 @@ const { logLine, logHeader } = require('@davidwells/box-logger')
 const { createEditorLink } = require('./links')
 const logger = require('./logger')
 const nicePath = require('./nice-path')
+const stripAnsi = require('./strip-ansi')
 
-async function spawnProcess(fileToRun) {
+class ESMError extends Error {
+  constructor(message, stderr, previousErrors = []) {
+    // Use the actual error message from stderr if available
+    const errorMessage = stderr.split('\n').find(line => line.startsWith('Error:')) || message
+    super(errorMessage)
+    this.name = 'ESMError'
+    this.code = 'ESM_ERROR'
+    this.stderr = stderr
+    this.previousErrors = previousErrors
+  }
+}
+
+async function spawnProcess(fileToRun, errors = []) {
   return new Promise((resolve, reject) => {
+    let stdoutOutput = ''
     let stderrOutput = ''
-    const process = spawn('node', [fileToRun], {
-      stdio: ['inherit', 'inherit', 'pipe'] // Pipe stderr to capture it
+    const child = spawn('node', [fileToRun], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: { ...process.env, FORCE_COLOR: '1' }
     })
 
-    // Log stdout
-    process.stdout?.on('data', (data) => {
-      // console.log('stdout:', data.toString())
+    // Print and collect stdout
+    child.stdout.on('data', (data) => {
+      stdoutOutput += stripAnsi(data.toString())
+      process.stdout.write(data) // Print live with colors
     })
 
-    // Capture stderr
-    process.stderr?.on('data', (data) => {
-      const output = data.toString()
-      stderrOutput += output
-      // console.log('stderr:', output)
+    // Print and collect stderr
+    child.stderr.on('data', (data) => {
+      stderrOutput += stripAnsi(data.toString())
+      process.stderr.write(data) // Print live with colors
     })
     
-    process.on('close', (code) => {
-      // Check if we got an ESM error
-      if (stderrOutput.includes('require is not defined in ES module scope')) {
-        reject(new Error('ESM_ERROR'))
+    child.on('close', (code) => {
+      // Check for module not found error first
+      if (stderrOutput.includes('Error: Cannot find module')) {
+        const errorLine = stderrOutput.split('\n').find(line => line.startsWith('Error:')) || 'Module not found'
+        const error = new Error(errorLine.replace('Error: ', ''))
+        error.code = 'MODULE_NOT_FOUND'
+        error.stdout = stdoutOutput
+        error.stderr = stderrOutput
+        error.stack = stderrOutput // Add the full stderr as the stack trace
+        error.originalError = stderrOutput // Store the original error output
+        reject(error)
         return
       }
+
+      // Check if we got an ESM error
+      if (stderrOutput.includes('require is not defined in ES module scope')) {
+        // If we have previous errors, use the first non-ESM error
+        const previousNonESMError = errors.find(error => !(error instanceof ESMError))
+        if (previousNonESMError) {
+          // Ensure the original error's stderr is preserved
+          previousNonESMError.stderr = previousNonESMError.stderr || stderrOutput
+          previousNonESMError.stack = previousNonESMError.stack || stderrOutput
+          previousNonESMError.stdout = previousNonESMError.stdout || stdoutOutput
+          reject(previousNonESMError)
+          return
+        }
+        reject(new ESMError('ESM module error', stderrOutput, errors))
+        return
+      }
+      
+      // If test failed and we have stderr output, include it in the result
+      if (code !== 0 && stderrOutput.trim()) {
+        const error = new Error(`Test failed with exit code ${code}`)
+        error.code = 'TEST_FAILED'
+        error.exitCode = code
+        error.stderr = stderrOutput.trim()
+        error.stdout = stdoutOutput.trim()
+        error.stack = stderrOutput.trim() // Add the full stderr as the stack trace
+        logger.runner(`Test execution failed with status: ${code}`)
+        logger.runner('Stderr output:', stderrOutput.trim())
+        reject(error)
+        return
+      }
+      
       logger.runner(`Test execution completed with status: ${code === 0 ? 'passed' : 'failed'}`)
-      resolve(code)
+      resolve({
+        exitCode: code,
+        stdout: stdoutOutput.trim(),
+        stderr: stderrOutput.trim(),
+        success: code === 0,
+        file: fileToRun
+      })
     })
     
-    process.on('error', (error) => {
-      logger.runner('Test execution error:', error)
-      reject(error)
+    child.on('error', (error) => {
+      // Enhance spawn errors with more context
+      const enhancedError = new Error(`Spawn process error: ${error.message}`)
+      enhancedError.code = error.code || 'SPAWN_ERROR'
+      enhancedError.originalError = error
+      enhancedError.file = fileToRun
+      logger.runner('Test execution spawn error:', enhancedError.message)
+      reject(enhancedError)
     })
   })
 }
@@ -47,7 +111,11 @@ async function runTest(fileToRun) {
   try {
     return await spawnProcess(fileToRun)
   } catch (error) {
-    logger.runner('Initial run failed:', error.message)
+    const isSuppressed = error instanceof ESMError
+    
+    if (!isSuppressed) {
+      logger.runner('Initial run failed:', error.message)
+    }
   
     // If original file fails, try both extensions
     const content = fs.readFileSync(fileToRun, 'utf8')
@@ -58,7 +126,7 @@ async function runTest(fileToRun) {
     tempFile = await createTempFileJSFile(content, fileToRun)
     
     try {
-      const result = await spawnProcess(tempFile)
+      const result = await spawnProcess(tempFile, [error])
       // Clean up temp file
       fs.unlinkSync(tempFile)
       return result
@@ -71,13 +139,17 @@ async function runTest(fileToRun) {
       tempFile = await createTempFileWithExtension(content, fileToRun, '.mjs')
       
       try {
-        const result = await spawnProcess(tempFile)
+        const result = await spawnProcess(tempFile, [error, jsError])
         // Clean up temp file
         fs.unlinkSync(tempFile)
         return result
       } catch (mjsError) {
         // Clean up temp file even if retry fails
         fs.unlinkSync(tempFile)
+        // Preserve the original error's stderr if it exists
+        if (error.stderr) {
+          mjsError.stderr = error.stderr
+        }
         throw mjsError
       }
     }
