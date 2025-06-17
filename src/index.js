@@ -34,11 +34,11 @@ function logFailedTests(failedTests, caller = '') {
   }
 
   if (caller) {
-    console.log('caller', caller)
+    // console.log('caller', caller)
   }
 
   console.log()
-  console.log(chalk.redBright('✖ Failed tests:\n'))
+  console.log(chalk.redBright(`✖ Failed files (${failedTests.length}):\n`))
   failedTests.forEach((failedTest) => {
     // console.log('failedTest', failedTest)
     const { file, exitCode, error, description, stderr, stdout } = failedTest
@@ -90,7 +90,7 @@ function logFailedTests(failedTests, caller = '') {
         
         if (failedTestNames.length > 0) {
           console.log(
-            chalk.gray(`Failed test names:\n${failedTestNames.map(name => ` "${name}"`).join('\n')}`)
+            chalk.gray(`Failed tests (${failedTestNames.length}):\n${failedTestNames.map(name => ` "${name}"`).join('\n')}`)
           )
         }
       }
@@ -791,18 +791,19 @@ async function handleSelectionResult(
     // No specific command to copy for "all found tests" unless we define one.
   } else if (selectedOption.runAllInFile) {
     logger.cli(`Running all tests in: ${nicePath(selectedOption.file)}`)
-    exitCode = await executeTest(selectedOption.file)
-    if (exitCode !== 0) {
-      logFailedTests([{ file: selectedOption.file, exitCode }], 'run-all-in-file')
+    const testResult = await executeTest(selectedOption.file)
+    if (!testResult.success) {
+      logFailedTests([{ file: selectedOption.file, exitCode: testResult.exitCode }], 'run-all-in-file')
     }
     // Potentially copy command: tt path/to/file
     await copyCommandToClipboard(cleanMacPath(selectedOption.file), copyToClipboard)
   } else if (selectedOption.isSingleTest) {
     // User picked a specific test
-    exitCode = await runSingleTest(selectedOption, originalSearchTerm, copyToClipboard)
-    if (exitCode !== 0) {
-      logFailedTests([{ file: selectedOption.file, exitCode, description: selectedOption.description }], 'run-single-test-selection')
+    const testResult = await runSingleTest(selectedOption, originalSearchTerm, copyToClipboard)
+    if (!testResult.success) {
+      logFailedTests([{ file: selectedOption.file, exitCode: testResult.exitCode, description: selectedOption.description }], 'run-single-test-selection')
     }
+    process.exit(testResult.exitCode)
   } else {
     logger.cli('Unknown selection. Aborting.')
     exitCode = 1
