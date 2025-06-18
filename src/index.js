@@ -666,6 +666,7 @@ Examples:
         runAllMatchingFlag, 
         copyToClipboard, 
         totalTestCounts,
+        allRunnableTests,
       )
     }
 
@@ -748,6 +749,7 @@ Examples:
         runAllMatchingFlag,
         copyToClipboard,
         totalTestCounts,
+        allRunnableTests,
       )
     }
 
@@ -809,6 +811,7 @@ async function handleSelectionResult(
   runAllMatchingFlag,
   copyToClipboard,
   totalTestCounts, // Test counts per file
+  allRunnableTests, // All runnable tests in the project
 ) {
   // The --all flag state
   if (selectedOption.cancel) {
