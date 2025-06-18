@@ -174,7 +174,7 @@ function getTestFilesOrExit(testPath) {
   if (files.length === 0) {
     const scope = testPath ? `in: ${nicePath(testPath)}` : 'in the project'
     console.log(`No test files found ${scope}`)
-    process.exit(1)
+    process.exit(0)
   }
   return files
 }
