@@ -5,6 +5,7 @@ const Fuse = require('fuse.js')
 // Alt searcher maybe https://github.com/kentcdodds/match-sorter/blob/main/src/index.ts
 const prompts = require('prompts')
 const { program } = require('commander')
+const watchlist = require('watchlist')
 const logger = require('./utils/logger')
 const { findTestFiles, readTestFile, modifyTestFile, createTempFile } = require('./utils/test-processor')
 const { executeTest } = require('./utils/test-runner')
@@ -484,6 +485,179 @@ function cleanMacPath(filePath) {
   return filePath.replace(/^\/Users\/([A-Za-z0-9_-]*)\//, '~/')
 }
 
+/**
+ * Handles watch mode functionality
+ */
+async function handleWatchMode({ 
+  testFiles, 
+  testDescription, 
+  testPath, 
+  watchPatterns, 
+  runAllMatchingFlag, 
+  exactFlag, 
+  copyToClipboard 
+}) {
+  console.log(chalk.yellowBright('\n🔍 Watch mode enabled'))
+  
+  // Build list of patterns to watch
+  const patternsToWatch = []
+  
+  // Add test files to watch
+  testFiles.forEach(file => {
+    patternsToWatch.push(file)
+  })
+  
+  // Add additional watch patterns if provided
+  if (watchPatterns && watchPatterns.length > 0) {
+    patternsToWatch.push(...watchPatterns)
+  }
+  
+  console.log(chalk.gray(`Watching ${patternsToWatch.length} patterns:`))
+  patternsToWatch.forEach(pattern => {
+    console.log(chalk.gray(`  - ${nicePath(pattern)}`))
+  })
+  console.log()
+  
+  // Function to run tests
+  const runTests = async () => {
+    console.log(chalk.blueBright('\n🔄 Running tests...\n'))
+    
+    try {
+      // Refresh test files and runnable tests
+      const currentTestFiles = getTestFilesOrExit(testPath)
+      const allRunnableTests = (await findTestsInFiles(currentTestFiles)).filter((test, index, self) =>
+        index === self.findIndex((t) => t.file === test.file && t.description === test.description)
+      )
+      
+      if (allRunnableTests.length === 0) {
+        console.log(`No runnable tests found`)
+        return
+      }
+      
+      const totalTestCounts = allRunnableTests.reduce((acc, { file }) => {
+        acc[file] = (acc[file] || 0) + 1
+        return acc
+      }, {})
+      
+      if (!testDescription) {
+        // No description, run all tests
+        const { exitCode, failedTests, skippedTests } = await runAllTestsInFiles(
+          currentTestFiles, 
+          'all tests', 
+          totalTestCounts
+        )
+        logTestResults(failedTests, skippedTests, 'watch-mode-all')
+      } else {
+        // Run tests matching description
+        const fuzzyResults = performFuzzySearch(allRunnableTests, testDescription)
+        
+        if (fuzzyResults.length === 0) {
+          console.log(`No tests found matching "${testDescription}".`)
+          return
+        }
+        
+        // Check for exact matches
+        const exactMatches = fuzzyResults.filter(result => 
+          result.item.description.toLowerCase() === testDescription.toLowerCase()
+        )
+        
+        if (exactFlag && exactMatches.length === 1) {
+          const testResult = await runSingleTest(exactMatches[0].item, testDescription, copyToClipboard)
+          const failedTests = !testResult.success ? [{ file: exactMatches[0].item.file, exitCode: testResult.exitCode, description: exactMatches[0].item.description }] : []
+          const skippedTests = testResult.skippedCount > 0 ? [{ file: exactMatches[0].item.file, skippedCount: testResult.skippedCount }] : []
+          logTestResults(failedTests, skippedTests, 'watch-mode-exact')
+        } else if (exactMatches.length === 1 && !runAllMatchingFlag) {
+          // Single exact match, run it
+          const testResult = await runSingleTest(exactMatches[0].item, testDescription, copyToClipboard)
+          const failedTests = !testResult.success ? [{ file: exactMatches[0].item.file, exitCode: testResult.exitCode, description: exactMatches[0].item.description }] : []
+          const skippedTests = testResult.skippedCount > 0 ? [{ file: exactMatches[0].item.file, skippedCount: testResult.skippedCount }] : []
+          logTestResults(failedTests, skippedTests, 'watch-mode-single')
+        } else {
+          // Multiple matches or --all flag, run all matching
+          const testsToExecute = runAllMatchingFlag ? fuzzyResults.map((r) => r.item) : [fuzzyResults[0].item]
+          
+          if (testsToExecute.length === 1) {
+            const testResult = await runSingleTest(testsToExecute[0], testDescription, false)
+            const failedTests = !testResult.success ? [{ file: testsToExecute[0].file, exitCode: testResult.exitCode, description: testsToExecute[0].description }] : []
+            const skippedTests = testResult.skippedCount > 0 ? [{ file: testsToExecute[0].file, skippedCount: testResult.skippedCount }] : []
+            logTestResults(failedTests, skippedTests, 'watch-mode-single-fuzzy')
+          } else {
+            const failedTests = []
+            const skippedTests = []
+            for (const testInfo of testsToExecute) {
+              const testResult = await runSingleTest(testInfo, testDescription, false)
+              if (!testResult.success) {
+                failedTests.push({ 
+                  file: testInfo.file, 
+                  exitCode: testResult.exitCode, 
+                  description: testInfo.description,
+                  stdout: testResult.stdout,
+                  stderr: testResult.stderr
+                })
+              }
+              if (testResult.skippedCount > 0) {
+                skippedTests.push({
+                  file: testInfo.file,
+                  skippedCount: testResult.skippedCount
+                })
+              }
+            }
+            logTestResults(failedTests, skippedTests, 'watch-mode-multiple')
+          }
+        }
+      }
+    } catch (error) {
+      console.error(chalk.redBright('Error running tests:'), error.message)
+    }
+    
+    console.log(chalk.gray('\n✨ Watching for changes... (Press Ctrl+C to stop)'))
+  }
+  
+  // Run tests initially
+  await runTests()
+  
+  // Setup watcher
+  const watcher = watchlist(patternsToWatch, {
+    ignore: [
+      '**/node_modules/**',
+      '**/.git/**',
+      '**/coverage/**',
+      '**/.nyc_output/**',
+      '**/tmp/**',
+      '**/temp/**'
+    ]
+  })
+  
+  let isRunning = false
+  
+  watcher.on('change', async (file) => {
+    if (isRunning) return
+    
+    isRunning = true
+    console.log(chalk.yellowBright(`\n📝 File changed: ${nicePath(file)}`))
+    
+    // Small delay to allow for multiple rapid changes
+    setTimeout(async () => {
+      await runTests()
+      isRunning = false
+    }, 100)
+  })
+  
+  watcher.on('error', (error) => {
+    console.error(chalk.redBright('Watch error:'), error)
+  })
+  
+  // Handle process exit
+  process.on('SIGINT', () => {
+    console.log(chalk.yellowBright('\n\n👋 Stopping watch mode...'))
+    watcher.close()
+    process.exit(0)
+  })
+  
+  // Keep the process running
+  return new Promise(() => {})
+}
+
 // --- Main Program Logic ---
 program
   .version('1.0.0')
@@ -495,6 +669,7 @@ program
   .option('-l, --list', 'List all test descriptions found')
   .option('--ls', 'List all test descriptions found (alias for --list)')
   .option('-c, --copy', 'Copy the command to clipboard')
+  .option('-w, --watch [patterns...]', 'Watch test files for changes and re-run tests. Optional: specify additional patterns to watch (e.g., src/**/*.js)')
   .argument('[args...]', 'Test description or [file/directory] and description')
   .addHelpText('after', `
 Examples:
@@ -524,6 +699,15 @@ Examples:
 
   # Run a test and copy the command to clipboard
   $ tt "login" --copy
+
+  # Watch test files and re-run on changes
+  $ tt --watch
+
+  # Watch test files and re-run specific tests on changes
+  $ tt "login" --watch
+
+  # Watch additional patterns along with test files
+  $ tt --watch "src/**/*.js" "lib/**/*.js"
 `)
   .action(async (args, options) => {
     logger.cli('Initializing CLI with version 1.0.0')
@@ -533,6 +717,8 @@ Examples:
     const exactFlag = options.exact || options.e
     const forceFlag = options.force || options.f
     const copyToClipboard = options.copy || options.c
+    const watchMode = options.watch !== undefined
+    const watchPatterns = Array.isArray(options.watch) ? options.watch : []
     const listHijack = emptyFlags && (args.length === 1 && (args[0] === 'list' || args[0] === 'ls'))
     const runHijack = emptyFlags && (args.length === 1 && (args[0] === 'run' || args[0] === 'r'))
     const { testPath, testDescription } = parseCliArguments(args)
@@ -553,6 +739,19 @@ Examples:
       acc[file] = (acc[file] || 0) + 1
       return acc
     }, {})
+
+    // Handle watch mode
+    if (watchMode) {
+      return await handleWatchMode({
+        testFiles,
+        testDescription,
+        testPath,
+        watchPatterns,
+        runAllMatchingFlag,
+        exactFlag,
+        copyToClipboard
+      })
+    }
 
     // If no args provided, run all test files
     if (!args || args.length === 0 || listHijack) {
