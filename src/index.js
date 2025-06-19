@@ -669,8 +669,7 @@ program
   .option('-l, --list', 'List all test descriptions found')
   .option('--ls', 'List all test descriptions found (alias for --list)')
   .option('-c, --copy', 'Copy the command to clipboard')
-  .option('-w, --watch', 'Watch test files for changes and re-run tests')
-  .option('--watch-pattern <patterns...>', 'Additional patterns to watch (e.g., src/**/*.js)')
+  .option('-w, --watch [patterns...]', 'Watch test files for changes and re-run tests. Optional: specify additional patterns to watch (e.g., src/**/*.js)')
   .argument('[args...]', 'Test description or [file/directory] and description')
   .addHelpText('after', `
 Examples:
@@ -708,7 +707,7 @@ Examples:
   $ tt "login" --watch
 
   # Watch additional patterns along with test files
-  $ tt --watch --watch-pattern "src/**/*.js" "lib/**/*.js"
+  $ tt --watch "src/**/*.js" "lib/**/*.js"
 `)
   .action(async (args, options) => {
     logger.cli('Initializing CLI with version 1.0.0')
@@ -718,8 +717,8 @@ Examples:
     const exactFlag = options.exact || options.e
     const forceFlag = options.force || options.f
     const copyToClipboard = options.copy || options.c
-    const watchMode = options.watch || options.w
-    const watchPatterns = options.watchPattern || []
+    const watchMode = options.watch !== undefined
+    const watchPatterns = Array.isArray(options.watch) ? options.watch : []
     const listHijack = emptyFlags && (args.length === 1 && (args[0] === 'list' || args[0] === 'ls'))
     const runHijack = emptyFlags && (args.length === 1 && (args[0] === 'run' || args[0] === 'r'))
     const { testPath, testDescription } = parseCliArguments(args)
