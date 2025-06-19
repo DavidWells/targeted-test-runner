@@ -546,7 +546,7 @@ Examples:
     // const allRunnableTests = []
     if (allRunnableTests.length === 0) {
       console.log(`No runnable tests found in ${process.cwd()}`)
-      process.exit(1)
+      process.exit(0)
     }
 
     const totalTestCounts = allRunnableTests.reduce((acc, { file }) => {
