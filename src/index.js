@@ -535,7 +535,11 @@ Examples:
     const copyToClipboard = options.copy || options.c
     const listHijack = emptyFlags && (args.length === 1 && (args[0] === 'list' || args[0] === 'ls'))
     const runHijack = emptyFlags && (args.length === 1 && (args[0] === 'run' || args[0] === 'r'))
-    const { testPath, testDescription } = parseCliArguments(args)
+    let { testPath, testDescription } = parseCliArguments(args)
+    // Normalize testDescription by collapsing newlines and extra whitespace
+    if (testDescription) {
+      testDescription = testDescription.replace(/\s+/g, ' ').trim()
+    }
     const testFiles = getTestFilesOrExit(testPath) // testPath can be undefined for all files
     const allRunnableTests = (await findTestsInFiles(testFiles)).filter((test, index, self) =>
       index === self.findIndex((t) => t.file === test.file && t.description === test.description)
@@ -671,6 +675,7 @@ Examples:
     }
 
     // We have a testDescription, proceed with fuzzy search
+    // console.log('DEBUG: testDescription =', JSON.stringify(testDescription))
     const fuzzyResults = performFuzzySearch(allRunnableTests, testDescription)
 
     if (fuzzyResults.length === 0) {
@@ -680,9 +685,12 @@ Examples:
     }
 
     // Check for exact matches
-    const exactMatches = fuzzyResults.filter(result => 
+    // console.log('DEBUG: Checking for exact matches against:', testDescription.toLowerCase())
+    // console.log('DEBUG: First few fuzzyResults descriptions:', fuzzyResults.slice(0, 3).map(r => r.item.description))
+    const exactMatches = fuzzyResults.filter(result =>
       result.item.description.toLowerCase() === testDescription.toLowerCase()
     )
+    // console.log('DEBUG: exactMatches.length =', exactMatches.length)
 
     /* If one exact match, and --force flag, run it directly */
     if (exactFlag && exactMatches.length === 1) {
@@ -699,8 +707,8 @@ Examples:
 
     if (exactMatches.length === 1 && !runAllMatchingFlag) {
       // Check if any other fuzzy results start with the exact match
-      const hasPrefixMatches = fuzzyResults.some(result => 
-        !exactMatches.includes(result) && 
+      const hasPrefixMatches = fuzzyResults.some(result =>
+        !exactMatches.includes(result) &&
         result.item.description.toLowerCase().startsWith(exactMatches[0].item.description.toLowerCase())
       )
 
@@ -722,10 +730,10 @@ Examples:
     }
 
     if (listOnly) {
-      await listAndSelectTests({ 
-        fuzzyResults, 
-        testFiles, 
-        testDescription, 
+      await listAndSelectTests({
+        fuzzyResults,
+        testFiles,
+        testDescription,
         listOnly: true,
         totalTestCounts
       })
@@ -774,9 +782,9 @@ Examples:
         const testResult = await runSingleTest(testInfo, testDescription, false)
         if (!testResult.success) {
           overallExitCode = testResult.exitCode
-          failedTests.push({ 
-            file: testInfo.file, 
-            exitCode: testResult.exitCode, 
+          failedTests.push({
+            file: testInfo.file,
+            exitCode: testResult.exitCode,
             description: testInfo.description,
             stdout: testResult.stdout,
             stderr: testResult.stderr
