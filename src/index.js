@@ -535,6 +535,13 @@ Examples:
     const copyToClipboard = options.copy || options.c
     const listHijack = emptyFlags && (args.length === 1 && (args[0] === 'list' || args[0] === 'ls'))
     const runHijack = emptyFlags && (args.length === 1 && (args[0] === 'run' || args[0] === 'r'))
+
+    // Strip 'run' or 'r' from beginning of args if followed by other arguments
+    // This handles cases like: tt run "test description" -> ["run", "test description"]
+    if (args.length > 1 && (args[0] === 'run' || args[0] === 'r')) {
+      args = args.slice(1)
+    }
+
     let { testPath, testDescription } = parseCliArguments(args)
     // Normalize testDescription by collapsing newlines and extra whitespace
     if (testDescription) {
